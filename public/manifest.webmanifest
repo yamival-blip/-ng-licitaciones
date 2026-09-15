@@ -1,0 +1,19 @@
+{
+
+  "name": "NG Licitaciones",
+
+  "short_name": "NG Licita",
+
+  "description": "Sistema de inteligencia y seguimiento de licitaciones de NG Ingeniería",
+
+  "start_url": "/",
+
+  "display": "standalone",
+
+  "background_color": "#020617",
+
+  "theme_color": "#0f172a",
+
+  "orientation": "portrait-primary"
+
+}
