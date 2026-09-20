@@ -27,7 +27,7 @@
       <input id="codigo" placeholder="Ej: 2430-73-LR26" autocapitalize="characters" autocomplete="off">
       <button id="btnCargar" class="primary">Analizar licitación</button>
     </div>
-    <p class="rule"><b>Regla NG:</b> el sistema no marca nada como cumplido si no existe respaldo. Lo que no venga de Mercado Público o no haya sido revisado en las bases queda como <b>por confirmar</b>.</p>
+    <p class="rule"><b>Regla NG:</b> el sistema no marca nada como cumplido si no existe respaldo. Lo que Mercado Público entregue se marca como <b>Detectado en MP</b>. Lo que solo esté en bases o anexos queda como <b>Falta leer bases</b> hasta verificarlo.</p>
   </section>
 
   <section id="estado" class="card muted">Ingresa un ID para comenzar.</section>
@@ -75,9 +75,9 @@
       <div class="card">
         <div class="section-head">
           <div><span class="section-kicker">REVISIÓN</span><h2>Bases y requisitos</h2></div>
-          <span id="estadoBases" class="status warning">Por confirmar</span>
+          <span id="estadoBases" class="status warning">Falta leer bases</span>
         </div>
-        <p class="muted">Aquí se separa lo que está confirmado de lo que aún falta revisar. No se asumen visitas, garantías, experiencia, profesionales ni puntajes.</p>
+        <p class="muted">La app completa automáticamente los datos que entrega Mercado Público y separa lo que todavía exige revisar bases, anexos o respaldos de NG.</p>
         <div id="requisitos" class="requirements"></div>
       </div>
 
@@ -104,7 +104,7 @@
           <span id="pct" class="badge">0%</span>
         </div>
         <div class="progress"><div id="bar" class="bar"></div></div>
-        <p class="muted small">El avance sube solo cuando marcas un requisito como <b>Confirmado</b> o <b>No aplica</b>. “Por confirmar” no cuenta como cumplido.</p>
+        <p class="muted small">El avance sube solo cuando un requisito queda como <b>Cumple / confirmado</b> o <b>No aplica</b>. “Detectado en MP” informa el requisito, pero no significa que NG ya lo cumpla.</p>
         <div id="checklist"></div>
       </div>
 
@@ -127,8 +127,8 @@
           <div><label>Oferta NG</label><input id="ofertaMonto" inputmode="decimal" placeholder="Monto total"></div>
           <div><label>Baja vs presupuesto</label><input id="baja" readonly></div>
           <div><label>Plazo ofertado</label><input id="plazo" inputmode="numeric" placeholder="Ej: 90"></div>
-          <div><label>Unidad de plazo</label><select id="unidad"><option>Por confirmar</option><option>Días corridos</option><option>Días hábiles</option><option>Meses</option></select></div>
-          <div><label>Tratamiento IVA</label><select id="iva"><option>Por confirmar</option><option>Neto + IVA</option><option>IVA incluido</option><option>Exento / no aplica</option></select></div>
+          <div><label>Unidad de plazo</label><select id="unidad"><option>Falta definir</option><option>Días corridos</option><option>Días hábiles</option><option>Meses</option></select></div>
+          <div><label>Tratamiento IVA</label><select id="iva"><option>Falta definir</option><option>Neto + IVA</option><option>IVA incluido</option><option>Exento / no aplica</option></select></div>
         </div>
         <div id="analisisOferta" class="analysis-box" style="margin-top:12px"></div>
       </div>
@@ -140,7 +140,7 @@
           <div><label>Plazo (%)</label><input id="pesoPlazo" inputmode="decimal" placeholder="Ej: 20"></div>
           <div><label>Técnico / otros (%)</label><input id="pesoOtros" inputmode="decimal" placeholder="Ej: 40"></div>
         </div>
-        <div id="sumaCriterios" class="note small" style="margin-top:10px">Pesos por confirmar en bases.</div>
+        <div id="sumaCriterios" class="note small" style="margin-top:10px">Pesos pendientes de lectura de bases.</div>
       </div>
     </section>
 
