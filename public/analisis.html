@@ -1,1 +1,192 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f172a"><link rel="stylesheet" href="/styles.css"><title>NG · Preparar Licitación</title></head><body><div class="wrap"><div class="top"><div><h1 style="margin:0">NG · Preparar Licitación</h1><div class="muted">Ficha · bases · oferta · documentos · resultado</div></div><div class="row"><span class="badge">v3.0</span><button class="secondary" onclick="location.href='/'">← Inicio</button></div></div><div class="card"><label for="codigo">ID de licitación</label><div class="row"><input id="codigo" style="flex:1;min-width:220px" placeholder="Ej: 812799-38-LR26" autocapitalize="characters"><button id="btnCargar" class="primary">Cargar licitación</button></div><div class="note small" style="margin-top:10px"><b>Regla NG:</b> no inventar requisitos ni puntajes. Lo que no esté disponible debe confirmarse en bases, anexos, foro o documentos oficiales.</div></div><div id="estado" class="card muted">Ingresa un ID para comenzar.</div><div id="app" hidden><div class="card tabs"><button class="tab active" data-tab="detalle">1. Ficha</button><button class="tab" data-tab="bases">2. Bases y riesgos</button><button class="tab" data-tab="oferta">3. Preparar oferta</button><button class="tab" data-tab="docs">4. Documentos/cartas</button><button class="tab" data-tab="resultado">5. Resultado</button></div><section id="detalle" class="panel active"><div class="card"><h2>Ficha de la licitación</h2><div id="datos" class="grid3"></div><div id="descripcion" class="note" style="margin-top:10px"></div></div><div class="card"><h2>Ítems informados por Mercado Público</h2><div id="itemsLicitacion" class="muted">Sin ítems informados.</div></div></section><section id="bases" class="panel"><div class="card"><h2>Revisión de bases y riesgos</h2><div class="note"><b>Verificar siempre:</b> visita a terreno, garantía, experiencia mínima, profesionales, anexos, firmas, plazo, presupuesto, criterios de evaluación, multas, forma de pago, foro y causales de inadmisibilidad.</div><label style="margin-top:12px">Resumen de bases / foro</label><textarea id="textoBases" placeholder="Pega aquí extractos relevantes de bases, anexos o foro..."></textarea><label>Riesgos de inadmisibilidad / observaciones</label><textarea id="riesgos" placeholder="Ej.: visita obligatoria pendiente; anexo sin firma; profesional no cumple..."></textarea></div></section><section id="oferta" class="panel"><div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Checklist de postulación</h2><span id="pct" class="badge">0%</span></div><div class="progress" style="margin:12px 0"><div id="bar" class="bar"></div></div><div id="checklist"></div></div><div class="card"><h2>Oferta técnica</h2><div class="grid"><div><label>Metodología / ejecución</label><textarea id="metodologia"></textarea></div><div><label>Experiencia acreditable</label><textarea id="experiencia"></textarea></div><div><label>Profesionales / equipo</label><textarea id="profesionales"></textarea></div><div><label>Plan de trabajo / hitos</label><textarea id="plan"></textarea></div></div></div><div class="card"><h2>Oferta económica</h2><div class="grid3"><div><label>Presupuesto informado</label><input id="presupuesto" readonly></div><div><label>Oferta NG</label><input id="ofertaMonto" inputmode="decimal" placeholder="Monto total"></div><div><label>Baja vs presupuesto</label><input id="baja" readonly></div><div><label>Plazo ofertado</label><input id="plazo" placeholder="Ej: 90"></div><div><label>Unidad de plazo</label><select id="unidad"><option>Confirmar en bases</option><option>Días corridos</option><option>Días hábiles</option><option>Meses</option></select></div><div><label>Tratamiento IVA</label><select id="iva"><option>Confirmar en bases</option><option>Neto + IVA</option><option>IVA incluido</option><option>Exento / no aplica</option></select></div></div></div></section><section id="docs" class="panel"><div class="card"><h2>Documentos y cartas</h2><div class="note small">Si las bases entregan un anexo oficial, ese formato manda. Estas cartas son borradores de apoyo.</div><label style="margin-top:12px">Carta de presentación</label><textarea id="cartaPresentacion"></textarea><label>Carta de compromiso</label><textarea id="cartaCompromiso"></textarea><label>Consulta para foro</label><textarea id="consultaForo"></textarea></div></section><section id="resultado" class="panel"><div class="card"><h2>Análisis de resultado / adjudicación</h2><div id="analisisResultado"></div><div id="faltantes" class="note" style="margin-top:10px"></div></div></section><div class="card toolbar"><div class="row"><button class="primary" id="btnGuardar">Guardar trabajo</button><button class="secondary" id="btnCopiar">Copiar resumen</button><button class="secondary" onclick="window.print()">Imprimir / PDF</button></div><div id="guardado" class="muted small" style="margin-top:8px"></div></div></div></div><script src="/analisis.js"></script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07111f">
+  <link rel="stylesheet" href="/styles.css">
+  <title>NG · Licitaciones</title>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">NG Ingeniería · Compras Públicas</div>
+      <h1>NG · Licitaciones</h1>
+      <div class="muted">Buscar · analizar · preparar · seguir · competir</div>
+    </div>
+    <div class="top-actions">
+      <span class="badge">v4.0</span>
+      <button class="ghost" onclick="location.href='/'">← Inicio</button>
+    </div>
+  </header>
+
+  <section class="card search-card">
+    <label for="codigo">ID de licitación</label>
+    <div class="search-row">
+      <input id="codigo" placeholder="Ej: 2430-73-LR26" autocapitalize="characters" autocomplete="off">
+      <button id="btnCargar" class="primary">Analizar licitación</button>
+    </div>
+    <p class="rule"><b>Regla NG:</b> el sistema no marca nada como cumplido si no existe respaldo. Lo que no venga de Mercado Público o no haya sido revisado en las bases queda como <b>por confirmar</b>.</p>
+  </section>
+
+  <section id="estado" class="card muted">Ingresa un ID para comenzar.</section>
+
+  <main id="app" hidden>
+    <nav class="tabs card" aria-label="Secciones">
+      <button class="tab active" data-tab="resumen">Resumen</button>
+      <button class="tab" data-tab="bases">Bases</button>
+      <button class="tab" data-tab="postulacion">Postulación</button>
+      <button class="tab" data-tab="analisis">Análisis</button>
+      <button class="tab" data-tab="competencia">Competencia</button>
+      <button class="tab" data-tab="documentos">Documentos</button>
+      <button class="tab" data-tab="resultado">Resultado</button>
+    </nav>
+
+    <section id="resumen" class="panel active">
+      <div id="alertaPrincipal"></div>
+      <div class="card">
+        <div class="section-head">
+          <div><span class="section-kicker">OPORTUNIDAD</span><h2 id="nombreLicitacion">Licitación</h2></div>
+          <span id="estadoLicitacion" class="status neutral">—</span>
+        </div>
+        <div id="datosClave" class="grid4"></div>
+        <div id="descripcion" class="note" style="margin-top:12px"></div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <div class="section-head"><h2>Fechas clave</h2><span class="mini">Mercado Público</span></div>
+          <div id="fechasClave" class="timeline"></div>
+        </div>
+        <div class="card">
+          <div class="section-head"><h2>Semáforo NG</h2><span id="semaforoGeneral" class="status neutral">Por revisar</span></div>
+          <div id="semaforoDetalle"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-head"><h2>Ítems de la licitación</h2><span id="totalItems" class="mini"></span></div>
+        <div id="itemsLicitacion" class="muted">Sin ítems informados.</div>
+      </div>
+    </section>
+
+    <section id="bases" class="panel">
+      <div class="card">
+        <div class="section-head">
+          <div><span class="section-kicker">REVISIÓN</span><h2>Bases y requisitos</h2></div>
+          <span id="estadoBases" class="status warning">Por confirmar</span>
+        </div>
+        <p class="muted">Aquí se separa lo que está confirmado de lo que aún falta revisar. No se asumen visitas, garantías, experiencia, profesionales ni puntajes.</p>
+        <div id="requisitos" class="requirements"></div>
+      </div>
+
+      <div class="card">
+        <h2>Resumen de bases / foro</h2>
+        <textarea id="textoBases" placeholder="Pega aquí extractos de bases, anexos o foro. Se guardan automáticamente."></textarea>
+        <div class="row" style="margin-top:10px">
+          <button id="btnAnalizarTexto" class="secondary">Extraer datos del texto</button>
+          <span class="muted small">Ayuda a detectar palabras clave; siempre debes contrastar con el documento oficial.</span>
+        </div>
+        <div id="hallazgosTexto" class="analysis-box" hidden></div>
+      </div>
+
+      <div class="card">
+        <h2>Riesgos de inadmisibilidad</h2>
+        <textarea id="riesgos" placeholder="Ej.: visita obligatoria no acreditada; anexo sin firma; profesional no cumple..."></textarea>
+      </div>
+    </section>
+
+    <section id="postulacion" class="panel">
+      <div class="card">
+        <div class="section-head">
+          <div><span class="section-kicker">CONTROL</span><h2>Checklist real de postulación</h2></div>
+          <span id="pct" class="badge">0%</span>
+        </div>
+        <div class="progress"><div id="bar" class="bar"></div></div>
+        <p class="muted small">El avance sube solo cuando marcas un requisito como <b>Confirmado</b> o <b>No aplica</b>. “Por confirmar” no cuenta como cumplido.</p>
+        <div id="checklist"></div>
+      </div>
+
+      <div class="card">
+        <h2>Oferta técnica</h2>
+        <div class="grid2">
+          <div><label>Metodología / ejecución</label><textarea id="metodologia"></textarea></div>
+          <div><label>Experiencia acreditable</label><textarea id="experiencia"></textarea></div>
+          <div><label>Profesionales / equipo</label><textarea id="profesionales"></textarea></div>
+          <div><label>Plan de trabajo / hitos</label><textarea id="plan"></textarea></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="analisis" class="panel">
+      <div class="card">
+        <div class="section-head"><div><span class="section-kicker">ESTRATEGIA</span><h2>Análisis de oferta</h2></div><span id="estadoOferta" class="status neutral">Sin oferta</span></div>
+        <div class="grid3">
+          <div><label>Presupuesto informado</label><input id="presupuesto" readonly></div>
+          <div><label>Oferta NG</label><input id="ofertaMonto" inputmode="decimal" placeholder="Monto total"></div>
+          <div><label>Baja vs presupuesto</label><input id="baja" readonly></div>
+          <div><label>Plazo ofertado</label><input id="plazo" inputmode="numeric" placeholder="Ej: 90"></div>
+          <div><label>Unidad de plazo</label><select id="unidad"><option>Por confirmar</option><option>Días corridos</option><option>Días hábiles</option><option>Meses</option></select></div>
+          <div><label>Tratamiento IVA</label><select id="iva"><option>Por confirmar</option><option>Neto + IVA</option><option>IVA incluido</option><option>Exento / no aplica</option></select></div>
+        </div>
+        <div id="analisisOferta" class="analysis-box" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
+        <h2>Criterios de evaluación</h2>
+        <div class="grid3">
+          <div><label>Precio (%)</label><input id="pesoPrecio" inputmode="decimal" placeholder="Ej: 40"></div>
+          <div><label>Plazo (%)</label><input id="pesoPlazo" inputmode="decimal" placeholder="Ej: 20"></div>
+          <div><label>Técnico / otros (%)</label><input id="pesoOtros" inputmode="decimal" placeholder="Ej: 40"></div>
+        </div>
+        <div id="sumaCriterios" class="note small" style="margin-top:10px">Pesos por confirmar en bases.</div>
+      </div>
+    </section>
+
+    <section id="competencia" class="panel">
+      <div class="card">
+        <div class="section-head">
+          <div><span class="section-kicker">INTELIGENCIA DE MERCADO</span><h2>Competencia</h2></div>
+          <span class="status warning">Datos oficiales primero</span>
+        </div>
+        <p class="muted">La app mostrará competidores solo cuando existan datos de oferentes, adjudicación o historial disponible. No inventará nombres, precios ni probabilidades.</p>
+        <div id="competidores"></div>
+      </div>
+      <div class="card">
+        <h2>Notas de estrategia</h2>
+        <textarea id="notasCompetencia" placeholder="Competidores esperados, porcentaje de baja histórico, observaciones..."></textarea>
+      </div>
+    </section>
+
+    <section id="documentos" class="panel">
+      <div class="card">
+        <div class="section-head"><div><span class="section-kicker">EXPEDIENTE</span><h2>Documentos y cartas</h2></div><span class="mini">Autoguardado</span></div>
+        <div class="note small">Si las bases entregan un anexo oficial, ese formato manda. Estas cartas son borradores de apoyo.</div>
+        <label style="margin-top:14px">Carta de presentación</label><textarea id="cartaPresentacion"></textarea>
+        <label>Carta de compromiso</label><textarea id="cartaCompromiso"></textarea>
+        <label>Consulta para foro</label><textarea id="consultaForo"></textarea>
+      </div>
+    </section>
+
+    <section id="resultado" class="panel">
+      <div class="card">
+        <div class="section-head"><div><span class="section-kicker">SEGUIMIENTO</span><h2>Resultado / adjudicación</h2></div><span id="estadoResultado" class="status neutral">En seguimiento</span></div>
+        <div id="analisisResultado"></div>
+        <div id="faltantes" class="note" style="margin-top:12px"></div>
+      </div>
+    </section>
+
+    <div class="card toolbar">
+      <div class="row">
+        <button class="primary" id="btnGuardar">Guardar</button>
+        <button class="secondary" id="btnCopiar">Copiar resumen</button>
+        <button class="secondary" onclick="window.print()">Imprimir / PDF</button>
+      </div>
+      <div id="guardado" class="muted small"></div>
+    </div>
+  </main>
+</div>
+<script src="/analisis.js"></script>
+</body>
+</html>
