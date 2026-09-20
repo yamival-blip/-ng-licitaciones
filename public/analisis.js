@@ -17,9 +17,10 @@ const requisitos=[
 ];
 
 const estadoOptions=[
-  ["pendiente","Por confirmar"],
-  ["confirmado","Confirmado"],
-  ["bloqueo","Bloqueante"],
+  ["faltabases","Falta leer bases"],
+  ["detectado","Detectado en MP"],
+  ["confirmado","Cumple / confirmado"],
+  ["bloqueo","No cumple / bloqueo"],
   ["noaplica","No aplica"]
 ];
 
@@ -32,8 +33,56 @@ function num(v){const n=Number(String(v??"").replace(/[^0-9.-]/g,""));return Num
 function key(){return "ng_postulacion_v4_"+codigoActual}
 function saved(){try{return JSON.parse(localStorage.getItem(key())||"{}")}catch{return {}}}
 function now(){return new Date().toLocaleString("es-CL")}
-function statusClass(v){return v==="confirmado"?"ok":v==="bloqueo"?"danger":v==="noaplica"?"neutral":"warning"}
-function statusLabel(v){return estadoOptions.find(x=>x[0]===v)?.[1]||"Por confirmar"}
+function statusClass(v){return v==="confirmado"?"ok":v==="detectado"?"info":v==="bloqueo"?"danger":v==="noaplica"?"neutral":"warning"}
+function statusLabel(v){return estadoOptions.find(x=>x[0]===v)?.[1]||"Falta leer bases"}
+
+function modalidadPago(v){
+  const m={1:"Pago a 30 días",2:"Pago a 30, 60 y 90 días",3:"Pago al día",4:"Pago anual",5:"Pago bimensual",6:"Pago contra entrega conforme",7:"Pagos mensuales",8:"Pago por estado de avance",9:"Pago trimestral",10:"Pago a 60 días"};
+  return m[Number(v)]||v||"No informada";
+}
+function unidadTiempo(v){
+  const u={1:"horas",2:"días",3:"semanas",4:"meses",5:"años"};
+  return u[Number(v)]||v||"";
+}
+function autoEvidence(id){
+  const r=detalle?.raw||{};
+  const fechaVisita=pick(r,["Fechas.FechaVisitaTerreno","FechaVisitaTerreno"]);
+  const direccionVisita=pick(r,["DireccionVisita"]);
+  const duracion=pick(r,["TiempoDuracionContrato"]);
+  const tipoDuracion=pick(r,["TipoDuracionContrato"]);
+  const unidadDuracion=pick(r,["UnidadTiempoDuracionContrato","UnidadTiempo"]);
+  const inicioForo=pick(r,["Fechas.FechaInicio"]);
+  const finForo=pick(r,["Fechas.FechaFinal"]);
+  const pubRespuestas=pick(r,["Fechas.FechaPubRespuestas"]);
+  if(id==="visita"&&(fechaVisita||direccionVisita)){
+    return "Mercado Público informa"+(fechaVisita?": "+ffecha(fechaVisita):"")+(direccionVisita?" · "+direccionVisita:"");
+  }
+  if(id==="plazo"&&(duracion||tipoDuracion)){
+    return "Duración informada: "+(duracion||"")+(tipoDuracion?" "+tipoDuracion:" "+unidadTiempo(unidadDuracion));
+  }
+  if(id==="foro"&&(inicioForo||finForo||pubRespuestas)){
+    return "Foro informado por Mercado Público"+(inicioForo?": inicia "+ffecha(inicioForo):"")+(finForo?" · cierra "+ffecha(finForo):"")+(pubRespuestas?" · respuestas "+ffecha(pubRespuestas):"");
+  }
+  return "";
+}
+function autoState(id){
+  return autoEvidence(id)?"detectado":"faltabases";
+}
+function effectiveState(id,st){
+  return (st&&st[id])||autoState(id);
+}
+function automaticFacts(){
+  const r=detalle?.raw||{};
+  const facts=[];
+  const visita=autoEvidence("visita"); if(visita)facts.push(["Visita / reunión",visita]);
+  const plazo=autoEvidence("plazo"); if(plazo)facts.push(["Duración / plazo",plazo]);
+  const foro=autoEvidence("foro"); if(foro)facts.push(["Foro",foro]);
+  const modalidad=pick(r,["Modalidad"]); if(modalidad!==null&&modalidad!==undefined&&modalidad!=="")facts.push(["Modalidad de pago",modalidadPago(modalidad)]);
+  const sub=pick(r,["SubContratacion"]); if(sub!==null&&sub!==undefined&&sub!=="")facts.push(["Subcontratación",Number(sub)===1?"Permitida":Number(sub)===0?"No permitida":String(sub)]);
+  const reclamos=pick(r,["CantidadReclamos"]); if(reclamos!==null&&reclamos!==undefined&&reclamos!=="")facts.push(["Reclamos informados",String(reclamos)]);
+  const contrato=pick(r,["Contrato"]); if(contrato!==null&&contrato!==undefined&&contrato!=="")facts.push(["Formalización",Number(contrato)===1?"Requiere contrato":Number(contrato)===2?"Orden de compra":String(contrato)]);
+  return facts;
+}
 
 function setTab(name){
   document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.tab===name));
@@ -74,6 +123,12 @@ async function cargar(){
       tipo:pick(t,["Tipo","TipoConvocatoria"])||"",
       modalidad:pick(t,["Modalidad"])||"",
       etapas:pick(t,["Etapas"])||"",
+      fechaVisita:pick(t,["Fechas.FechaVisitaTerreno","FechaVisitaTerreno"]),
+      direccionVisita:pick(t,["DireccionVisita"])||"",
+      duracionContrato:pick(t,["TiempoDuracionContrato"]),
+      tipoDuracionContrato:pick(t,["TipoDuracionContrato"])||"",
+      subcontratacion:pick(t,["SubContratacion"]),
+      cantidadReclamos:pick(t,["CantidadReclamos"]),
       items:Array.isArray(t?.Items?.Listado)?t.Items.Listado:[],
       raw:t
     };
@@ -140,9 +195,13 @@ function renderResumen(){
 
 function renderRequisitos(){
   const s=saved(), st=s.statuses||{};
-  $("requisitos").innerHTML=requisitos.map(([id,t,d])=>{
-    const v=st[id]||"pendiente";
-    return '<div class="requirement"><div><b>'+esc(t)+'</b><small>'+esc(d)+'</small></div><span class="status '+statusClass(v)+'">'+esc(statusLabel(v))+'</span></div>';
+  const facts=automaticFacts();
+  const auto=facts.length?'<div class="auto-facts"><div class="auto-facts-title">Datos detectados automáticamente en Mercado Público</div>'+facts.map(([a,b])=>'<div class="auto-fact"><span>'+esc(a)+'</span><b>'+esc(b)+'</b></div>').join("")+'</div>':"";
+  $("requisitos").innerHTML=auto+requisitos.map(([id,t,d])=>{
+    const v=effectiveState(id,st);
+    const evidencia=autoEvidence(id);
+    const desc=evidencia||d;
+    return '<div class="requirement"><div><b>'+esc(t)+'</b><small>'+esc(desc)+'</small></div><span class="status '+statusClass(v)+'">'+esc(statusLabel(v))+'</span></div>';
   }).join("");
   actualizarSemaforo();
 }
@@ -150,9 +209,10 @@ function renderRequisitos(){
 function renderChecklist(){
   const s=saved(), st=s.statuses||{};
   $("checklist").innerHTML=requisitos.map(([id,t,d])=>{
-    const v=st[id]||"pendiente";
+    const v=effectiveState(id,st);
+    const desc=autoEvidence(id)||d;
     const opts=estadoOptions.map(([val,label])=>'<option value="'+val+'" '+(v===val?"selected":"")+'>'+label+'</option>').join("");
-    return '<div class="checkrow"><div class="checktext"><strong>'+esc(t)+'</strong><small>'+esc(d)+'</small></div><select id="st_'+id+'" class="state-select '+statusClass(v)+'">'+opts+'</select></div>';
+    return '<div class="checkrow"><div class="checktext"><strong>'+esc(t)+'</strong><small>'+esc(desc)+'</small></div><select id="st_'+id+'" class="state-select '+statusClass(v)+'">'+opts+'</select></div>';
   }).join("");
   requisitos.forEach(([id])=>{
     const el=$("st_"+id);
@@ -170,7 +230,10 @@ function renderChecklist(){
 function getStatuses(){
   const s=saved();
   const out={...(s.statuses||{})};
-  requisitos.forEach(([id])=>{if($("st_"+id))out[id]=$("st_"+id).value});
+  requisitos.forEach(([id])=>{
+    if($("st_"+id))out[id]=$("st_"+id).value;
+    else if(!out[id])out[id]=autoState(id);
+  });
   return out;
 }
 
@@ -185,20 +248,22 @@ function actualizarPct(){
 function actualizarSemaforo(){
   const st=getStatuses();
   const bloqueos=requisitos.filter(([id])=>st[id]==="bloqueo").length;
-  const pendientes=requisitos.filter(([id])=>!st[id]||st[id]==="pendiente").length;
-  const confirmados=requisitos.length-pendientes-bloqueos;
-  let label="Por revisar",cls="warning";
+  const faltan=requisitos.filter(([id])=>st[id]==="faltabases").length;
+  const detectados=requisitos.filter(([id])=>st[id]==="detectado").length;
+  const confirmados=requisitos.filter(([id])=>["confirmado","noaplica"].includes(st[id])).length;
+  let label="Falta leer bases",cls="warning";
   if(bloqueos){label=bloqueos+" bloqueo"+(bloqueos>1?"s":"");cls="danger"}
-  else if(pendientes===0){label="Revisión completa";cls="ok"}
-  else if(confirmados>0){label="En revisión";cls="warning"}
+  else if(faltan===0&&detectados===0){label="Revisión completa";cls="ok"}
+  else if(detectados>0){label="Datos MP detectados";cls="info"}
   $("semaforoGeneral").textContent=label;
   $("semaforoGeneral").className="status "+cls;
   $("semaforoDetalle").innerHTML=
-    '<div class="metric-line"><span>Confirmados / no aplica</span><b>'+confirmados+'</b></div>'+
-    '<div class="metric-line"><span>Por confirmar</span><b>'+pendientes+'</b></div>'+
-    '<div class="metric-line"><span>Bloqueantes</span><b>'+bloqueos+'</b></div>';
-  $("estadoBases").textContent=pendientes?"Por confirmar":(bloqueos?"Con bloqueos":"Revisadas");
-  $("estadoBases").className="status "+(bloqueos?"danger":pendientes?"warning":"ok");
+    '<div class="metric-line"><span>Cumple / confirmado / no aplica</span><b>'+confirmados+'</b></div>'+
+    '<div class="metric-line"><span>Detectado automáticamente en MP</span><b>'+detectados+'</b></div>'+
+    '<div class="metric-line"><span>Falta leer bases o anexos</span><b>'+faltan+'</b></div>'+
+    '<div class="metric-line"><span>No cumple / bloqueos</span><b>'+bloqueos+'</b></div>';
+  $("estadoBases").textContent=bloqueos?"Con bloqueos":faltan?"Falta leer bases":detectados?"Datos MP detectados":"Revisadas";
+  $("estadoBases").className="status "+(bloqueos?"danger":faltan?"warning":detectados?"info":"ok");
 }
 
 function analizarTextoBases(){
@@ -220,8 +285,9 @@ function analizarTextoBases(){
   }
   $("hallazgosTexto").hidden=false;
   $("hallazgosTexto").innerHTML=hits.length
-    ? '<b>Coincidencias encontradas</b><p class="muted small">Son ayudas de lectura, no validaciones automáticas.</p>'+hits.join("")
-    : '<b>No se detectaron coincidencias claras.</b><p class="muted small">Revisa manualmente las bases y anexos.</p>';
+    ? '<b>Coincidencias encontradas</b><p class="muted small">La app detectó contenido de bases. Marca Cumple o No cumple solo después de verificar que NG tenga el respaldo exigido.</p>'+hits.join("")
+    : '<b>No se detectaron coincidencias claras.</b><p class="muted small">Revisa las bases y anexos oficiales.</p>';
+  if(hits.length){renderRequisitos();renderChecklist();}
 }
 
 function calcularOferta(){
