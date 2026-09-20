@@ -1,18 +1,26 @@
 const $=id=>document.getElementById(id);
-let detalle=null,analisis=null,codigoActual="";
-const checks=[
- ["bases","Bases administrativas y técnicas revisadas","Requisitos, anexos, formatos, firmas y causales de inadmisibilidad."],
- ["visita","Visita a terreno / reunión obligatoria","Confirmar si existe, fecha, inscripción y comprobante de asistencia."],
- ["garantia","Garantía de seriedad","Confirmar monto, vigencia, glosa, beneficiario y formato."],
- ["admin","Documentos administrativos NG","Declaraciones, poderes, vigencia, registros y anexos exigidos."],
- ["experiencia","Experiencia exigida","Contratos/certificados válidos, montos, fechas y similitud."],
- ["profesionales","Profesionales y equipo","Títulos, CV, certificados, años de experiencia y dedicación."],
- ["tecnica","Oferta técnica","Metodología, programa, seguridad, calidad, recursos y anexos técnicos."],
- ["economica","Oferta económica","Itemizado, cantidades, precios unitarios, GG, utilidad, impuestos y total."],
- ["plazo","Plazo ofertado","Unidad, máximo permitido, evaluación y coherencia con el programa."],
- ["foro","Foro revisado","Preguntas, respuestas y aclaraciones que modifiquen las bases."],
- ["firmas","Firmas y formatos","Todos los documentos firmados y en el formato exigido."],
- ["envio","Carga y envío final","Archivos legibles, nombres correctos, peso permitido y comprobante antes del cierre."]
+let detalle=null, analisisMP=null, codigoActual="";
+
+const requisitos=[
+  ["bases","Bases administrativas y técnicas","Revisar bases, anexos, formatos, firmas y causales de inadmisibilidad."],
+  ["visita","Visita a terreno / reunión","Confirmar si existe, si es obligatoria, fecha, inscripción y comprobante."],
+  ["garantia","Garantía de seriedad","Confirmar monto, vigencia, glosa, beneficiario y formato."],
+  ["admin","Documentos administrativos NG","Declaraciones, poderes, vigencia, registros y anexos exigidos."],
+  ["experiencia","Experiencia exigida","Contratos/certificados válidos, montos, fechas y similitud."],
+  ["profesionales","Profesionales y equipo","Títulos, CV, certificados, años de experiencia y dedicación."],
+  ["tecnica","Oferta técnica","Metodología, programa, seguridad, calidad, recursos y anexos técnicos."],
+  ["economica","Oferta económica","Itemizado, cantidades, precios unitarios, GG, utilidad, impuestos y total."],
+  ["plazo","Plazo ofertado","Unidad, máximo permitido, evaluación y coherencia con el programa."],
+  ["foro","Foro y aclaraciones","Preguntas, respuestas y aclaraciones que modifiquen las bases."],
+  ["firmas","Firmas y formatos","Todos los documentos firmados y en el formato exigido."],
+  ["envio","Carga y envío final","Archivos legibles, nombres correctos, peso permitido y comprobante antes del cierre."]
+];
+
+const estadoOptions=[
+  ["pendiente","Por confirmar"],
+  ["confirmado","Confirmado"],
+  ["bloqueo","Bloqueante"],
+  ["noaplica","No aplica"]
 ];
 
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
@@ -20,57 +28,357 @@ function pick(o,paths){for(const p of paths){let v=o;for(const k of p.split(".")
 function firstTender(data){const l=data?.Listado||data?.listado||data?.ListadoLicitacion||[];return Array.isArray(l)&&l.length?l[0]:(data?.CodigoExterno||data?.Nombre?data:null)}
 function ffecha(v){if(!v)return "No informado";const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleString("es-CL")}
 function fmonto(v){const n=Number(v);return Number.isFinite(n)&&n>0?n.toLocaleString("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}):"No informado"}
-function key(){return "ng_postulacion_v3_"+codigoActual}
+function num(v){const n=Number(String(v??"").replace(/[^0-9.-]/g,""));return Number.isFinite(n)?n:0}
+function key(){return "ng_postulacion_v4_"+codigoActual}
 function saved(){try{return JSON.parse(localStorage.getItem(key())||"{}")}catch{return {}}}
-function setTab(name){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active',x.id===name));history.replaceState(null,'','#'+name)}
-document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
+function now(){return new Date().toLocaleString("es-CL")}
+function statusClass(v){return v==="confirmado"?"ok":v==="bloqueo"?"danger":v==="noaplica"?"neutral":"warning"}
+function statusLabel(v){return estadoOptions.find(x=>x[0]===v)?.[1]||"Por confirmar"}
+
+function setTab(name){
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.tab===name));
+  document.querySelectorAll(".panel").forEach(x=>x.classList.toggle("active",x.id===name));
+  history.replaceState(null,"","#"+name);
+}
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>setTab(b.dataset.tab)));
 
 async function cargar(){
- const c=$("codigo").value.trim().toUpperCase();if(!c)return;codigoActual=c;$("estado").innerHTML='<span class="muted">Consultando Mercado Público…</span>';$("app").hidden=true;
- try{
-  const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),16000);
-  const r=await fetch('/api/licitaciones?codigo='+encodeURIComponent(c),{signal:ctrl.signal,cache:'no-store'});clearTimeout(timer);
-  let j;try{j=await r.json()}catch{throw new Error('El servidor no devolvió una respuesta válida.')}
-  if(!r.ok||!j.ok)throw new Error(j.error||('Error HTTP '+r.status));
-  const t=firstTender(j.data);if(!t)throw new Error('No se encontró información para este ID. Revisa que esté escrito exactamente como en Mercado Público.');
-  detalle={
-   codigo:pick(t,['CodigoExterno','Codigo'])||c,nombre:pick(t,['Nombre'])||'',descripcion:pick(t,['Descripcion'])||'',estado:pick(t,['Estado','EstadoCodigo'])||'',
-   comprador:pick(t,['Comprador.NombreOrganismo','Comprador.NombreUnidad','NombreOrganismo'])||'',fechaPublicacion:pick(t,['Fechas.FechaPublicacion','FechaPublicacion']),
-   fechaCierre:pick(t,['Fechas.FechaCierre','FechaCierre']),fechaApertura:pick(t,['Fechas.FechaApertura','FechaApertura']),montoEstimado:pick(t,['MontoEstimado','Monto','Presupuesto','ValorEstimado']),tipo:pick(t,['Tipo','TipoConvocatoria'])||'',
-   items:Array.isArray(t?.Items?.Listado)?t.Items.Listado:[]
-  };
-  analisis=Array.isArray(j.analisis)?j.analisis[0]:j.analisis||null;
-  render();restaurar();$("estado").innerHTML='<span class="good"><b>Licitación cargada:</b></span> '+esc(c)+' · '+esc(detalle.nombre||'');$("app").hidden=false;
-  const hash=location.hash.replace('#','');if(['detalle','bases','oferta','docs','resultado'].includes(hash))setTab(hash);
- }catch(e){const msg=e.name==='AbortError'?'La consulta tardó demasiado. Intenta nuevamente.':e.message;$("estado").innerHTML='<span class="bad"><b>No se pudo cargar la licitación.</b></span><br>'+esc(msg)}
+  const c=$("codigo").value.trim().toUpperCase();
+  if(!c)return;
+  codigoActual=c;
+  $("estado").innerHTML='<span class="loader"></span> Consultando Mercado Público…';
+  $("app").hidden=true;
+  try{
+    const ctrl=new AbortController();
+    const timer=setTimeout(()=>ctrl.abort(),18000);
+    const r=await fetch("/api/licitaciones?codigo="+encodeURIComponent(c),{signal:ctrl.signal,cache:"no-store"});
+    clearTimeout(timer);
+    let j;
+    try{j=await r.json()}catch{throw new Error("El servidor no devolvió una respuesta válida.")}
+    if(!r.ok||!j.ok)throw new Error(j.error||("Error HTTP "+r.status));
+    const t=firstTender(j.data);
+    if(!t)throw new Error("No se encontró información para este ID. Revisa que esté escrito exactamente como en Mercado Público.");
+
+    detalle={
+      codigo:pick(t,["CodigoExterno","Codigo"])||c,
+      nombre:pick(t,["Nombre"])||"",
+      descripcion:pick(t,["Descripcion"])||"",
+      estado:pick(t,["Estado","EstadoCodigo"])||"",
+      comprador:pick(t,["Comprador.NombreOrganismo","Comprador.NombreUnidad","NombreOrganismo"])||"",
+      fechaPublicacion:pick(t,["Fechas.FechaPublicacion","FechaPublicacion"]),
+      fechaCierre:pick(t,["Fechas.FechaCierre","FechaCierre"]),
+      fechaApertura:pick(t,["Fechas.FechaApertura","FechaApertura"]),
+      fechaAdjudicacion:pick(t,["Fechas.FechaAdjudicacion","Adjudicacion.Fecha"]),
+      montoEstimado:pick(t,["MontoEstimado","Monto","Presupuesto","ValorEstimado"]),
+      moneda:pick(t,["Moneda"])||"CLP",
+      tipo:pick(t,["Tipo","TipoConvocatoria"])||"",
+      modalidad:pick(t,["Modalidad"])||"",
+      etapas:pick(t,["Etapas"])||"",
+      items:Array.isArray(t?.Items?.Listado)?t.Items.Listado:[],
+      raw:t
+    };
+    analisisMP=Array.isArray(j.analisis)?j.analisis[0]:j.analisis||null;
+    renderTodo();
+    restaurar();
+    $("estado").innerHTML='<span class="good-dot"></span><b>Licitación cargada:</b> '+esc(c)+' · '+esc(detalle.nombre||"");
+    $("app").hidden=false;
+    const hash=location.hash.replace("#","");
+    if(["resumen","bases","postulacion","analisis","competencia","documentos","resultado"].includes(hash))setTab(hash);
+  }catch(e){
+    const msg=e.name==="AbortError"?"La consulta tardó demasiado. Intenta nuevamente.":e.message;
+    $("estado").innerHTML='<span class="bad"><b>No se pudo cargar la licitación.</b></span><br>'+esc(msg);
+  }
 }
 
-function render(){
- const t=detalle;
- const datos=[["ID",t.codigo||codigoActual],["Nombre",t.nombre||'Sin nombre'],["Estado",t.estado||'No informado'],["Comprador",t.comprador||'No informado'],["Publicación",ffecha(t.fechaPublicacion)],["Cierre",ffecha(t.fechaCierre)],["Apertura",ffecha(t.fechaApertura)],["Presupuesto",fmonto(t.montoEstimado)],["Tipo",t.tipo||'No informado']];
- $("datos").innerHTML=datos.map(([a,b])=>'<div class="kpi"><small>'+esc(a)+'</small><b>'+esc(b)+'</b></div>').join('');
- $("descripcion").innerHTML='<b>Descripción:</b><br>'+esc(t.descripcion||'No informada por la API.');
- $("presupuesto").value=Number(t.montoEstimado)>0?Number(t.montoEstimado):'';
- $("itemsLicitacion").innerHTML=t.items.length?t.items.map(i=>'<div class="itemrow"><b>'+esc(i.Correlativo??'')+' · '+esc(i.NombreProducto||i.Descripcion||'Ítem')+'</b><br><span class="muted">'+esc(i.Descripcion||'')+(i.Cantidad!=null?' · Cantidad: '+esc(i.Cantidad):'')+(i.UnidadMedida?' '+esc(i.UnidadMedida):'')+'</span></div>').join(''):'<span class="muted">Mercado Público no entregó ítems en esta consulta.</span>';
- renderChecklist();crearCartas();renderResultado();calcularBaja();
+function renderTodo(){
+  renderResumen();
+  renderChecklist();
+  renderRequisitos();
+  crearCartas();
+  renderCompetencia();
+  renderResultado();
+  calcularOferta();
+  calcularCriterios();
 }
 
-function renderChecklist(){const s=saved(),ck=s.ck||{};$("checklist").innerHTML=checks.map(([id,t,d])=>'<label class="check"><input type="checkbox" id="ck_'+id+'" '+(ck[id]?'checked':'')+'><span><strong>'+esc(t)+'</strong><br><small class="muted">'+esc(d)+'</small></span></label>').join('');checks.forEach(([id])=>$("ck_"+id).addEventListener('change',()=>{actualizarPct();guardar(true)}));actualizarPct()}
-function actualizarPct(){const done=checks.filter(([id])=>$("ck_"+id)?.checked).length;const pct=Math.round(done*100/checks.length);$("pct").textContent=pct+'%';$("bar").style.width=pct+'%'}
-function crearCartas(){const nombre=detalle?.nombre||'';const comprador=detalle?.comprador||'Organismo comprador';if(!$("cartaPresentacion").value)$("cartaPresentacion").value=`Señores\n${comprador}\n\nRef.: Licitación ${codigoActual} – ${nombre}\n\nNG Ingeniería y Servicios Ltda., RUT 77.060.047-2, presenta su oferta para el proceso indicado, declarando que los antecedentes administrativos, técnicos y económicos acompañados corresponden a su propuesta y se sujetan a las bases, anexos y aclaraciones vigentes.\n\nSaluda atentamente,\nNG Ingeniería y Servicios Ltda.`;if(!$("cartaCompromiso").value)$("cartaCompromiso").value=`Señores\n${comprador}\n\nRef.: Licitación ${codigoActual}\n\nNG Ingeniería y Servicios Ltda. manifiesta su compromiso de ejecutar las obligaciones que resulten adjudicadas conforme a la oferta presentada, las bases, anexos, aclaraciones y el contrato u orden de compra que corresponda.\n\nEste borrador debe ajustarse al anexo oficial si las bases lo exigen.`}
+function renderResumen(){
+  const t=detalle;
+  $("nombreLicitacion").textContent=(t.codigo||codigoActual)+" · "+(t.nombre||"Sin nombre");
+  $("estadoLicitacion").textContent=t.estado||"No informado";
+  $("datosClave").innerHTML=[
+    ["Comprador",t.comprador||"No informado"],
+    ["Presupuesto",fmonto(t.montoEstimado)],
+    ["Cierre",ffecha(t.fechaCierre)],
+    ["Tipo",t.tipo||"No informado"]
+  ].map(([a,b])=>'<div class="kpi"><small>'+esc(a)+'</small><b>'+esc(b)+'</b></div>').join("");
+  $("descripcion").innerHTML="<b>Descripción</b><br>"+esc(t.descripcion||"No informada por la API.");
+
+  const fechas=[
+    ["Publicación",t.fechaPublicacion],
+    ["Cierre",t.fechaCierre],
+    ["Apertura",t.fechaApertura],
+    ["Adjudicación",t.fechaAdjudicacion]
+  ];
+  $("fechasClave").innerHTML=fechas.map(([a,b])=>'<div class="time-item"><span class="time-dot"></span><div><b>'+esc(a)+'</b><small>'+esc(ffecha(b))+'</small></div></div>').join("");
+
+  $("presupuesto").value=Number(t.montoEstimado)>0?Number(t.montoEstimado):"";
+  $("totalItems").textContent=t.items.length?(t.items.length+" ítem"+(t.items.length===1?"":"s")):"";
+  $("itemsLicitacion").innerHTML=t.items.length?t.items.map(i=>{
+    const cant=i.Cantidad!=null?' · Cantidad: '+esc(i.Cantidad):"";
+    const uni=i.UnidadMedida?' '+esc(i.UnidadMedida):"";
+    return '<div class="itemrow"><b>'+esc(i.Correlativo??"")+' · '+esc(i.NombreProducto||i.Descripcion||"Ítem")+'</b><br><span class="muted">'+esc(i.Descripcion||"")+cant+uni+'</span></div>';
+  }).join(""):'<span class="muted">Mercado Público no entregó ítems en esta consulta.</span>';
+
+  const faltan=[];
+  if(!t.montoEstimado)faltan.push("presupuesto");
+  if(!t.fechaCierre)faltan.push("fecha de cierre");
+  if(!t.descripcion)faltan.push("descripción");
+  $("alertaPrincipal").innerHTML=faltan.length
+    ? '<div class="alert warning"><b>Información incompleta en la API:</b> falta '+esc(faltan.join(", "))+'. Debe confirmarse en las bases o ficha oficial.</div>'
+    : '<div class="alert ok"><b>Ficha pública cargada.</b> Ahora falta validar los requisitos de las bases antes de preparar la oferta.</div>';
+}
+
+function renderRequisitos(){
+  const s=saved(), st=s.statuses||{};
+  $("requisitos").innerHTML=requisitos.map(([id,t,d])=>{
+    const v=st[id]||"pendiente";
+    return '<div class="requirement"><div><b>'+esc(t)+'</b><small>'+esc(d)+'</small></div><span class="status '+statusClass(v)+'">'+esc(statusLabel(v))+'</span></div>';
+  }).join("");
+  actualizarSemaforo();
+}
+
+function renderChecklist(){
+  const s=saved(), st=s.statuses||{};
+  $("checklist").innerHTML=requisitos.map(([id,t,d])=>{
+    const v=st[id]||"pendiente";
+    const opts=estadoOptions.map(([val,label])=>'<option value="'+val+'" '+(v===val?"selected":"")+'>'+label+'</option>').join("");
+    return '<div class="checkrow"><div class="checktext"><strong>'+esc(t)+'</strong><small>'+esc(d)+'</small></div><select id="st_'+id+'" class="state-select '+statusClass(v)+'">'+opts+'</select></div>';
+  }).join("");
+  requisitos.forEach(([id])=>{
+    const el=$("st_"+id);
+    el.addEventListener("change",()=>{
+      el.className="state-select "+statusClass(el.value);
+      guardar(true);
+      renderRequisitos();
+      actualizarPct();
+      actualizarSemaforo();
+    });
+  });
+  actualizarPct();
+}
+
+function getStatuses(){
+  const s=saved();
+  const out={...(s.statuses||{})};
+  requisitos.forEach(([id])=>{if($("st_"+id))out[id]=$("st_"+id).value});
+  return out;
+}
+
+function actualizarPct(){
+  const st=getStatuses();
+  const done=requisitos.filter(([id])=>["confirmado","noaplica"].includes(st[id])).length;
+  const pct=Math.round(done*100/requisitos.length);
+  $("pct").textContent=pct+"%";
+  $("bar").style.width=pct+"%";
+}
+
+function actualizarSemaforo(){
+  const st=getStatuses();
+  const bloqueos=requisitos.filter(([id])=>st[id]==="bloqueo").length;
+  const pendientes=requisitos.filter(([id])=>!st[id]||st[id]==="pendiente").length;
+  const confirmados=requisitos.length-pendientes-bloqueos;
+  let label="Por revisar",cls="warning";
+  if(bloqueos){label=bloqueos+" bloqueo"+(bloqueos>1?"s":"");cls="danger"}
+  else if(pendientes===0){label="Revisión completa";cls="ok"}
+  else if(confirmados>0){label="En revisión";cls="warning"}
+  $("semaforoGeneral").textContent=label;
+  $("semaforoGeneral").className="status "+cls;
+  $("semaforoDetalle").innerHTML=
+    '<div class="metric-line"><span>Confirmados / no aplica</span><b>'+confirmados+'</b></div>'+
+    '<div class="metric-line"><span>Por confirmar</span><b>'+pendientes+'</b></div>'+
+    '<div class="metric-line"><span>Bloqueantes</span><b>'+bloqueos+'</b></div>';
+  $("estadoBases").textContent=pendientes?"Por confirmar":(bloqueos?"Con bloqueos":"Revisadas");
+  $("estadoBases").className="status "+(bloqueos?"danger":pendientes?"warning":"ok");
+}
+
+function analizarTextoBases(){
+  const txt=$("textoBases").value.trim();
+  if(!txt){$("hallazgosTexto").hidden=false;$("hallazgosTexto").innerHTML="<b>No hay texto para analizar.</b>";return}
+  const reglas=[
+    ["Visita / reunión",/(visita|terreno|reunión|reunion).{0,90}/ig],
+    ["Garantía",/(garantía|garantia|seriedad).{0,120}/ig],
+    ["Plazo",/(plazo|días corridos|dias corridos|días hábiles|dias habiles).{0,120}/ig],
+    ["Experiencia",/(experiencia|contratos similares|obras similares).{0,120}/ig],
+    ["Profesionales",/(profesional|residente|jefe de obra|prevencionista|constructor).{0,120}/ig],
+    ["Evaluación",/(criterio|ponderación|ponderacion|puntaje|precio).{0,140}/ig],
+    ["IVA",/(iva incluido|más iva|mas iva|neto).{0,80}/ig]
+  ];
+  const hits=[];
+  for(const [name,re] of reglas){
+    const m=txt.match(re);
+    if(m?.length)hits.push('<div class="finding"><b>'+esc(name)+'</b><span>'+esc(m.slice(0,2).join(" … "))+'</span></div>');
+  }
+  $("hallazgosTexto").hidden=false;
+  $("hallazgosTexto").innerHTML=hits.length
+    ? '<b>Coincidencias encontradas</b><p class="muted small">Son ayudas de lectura, no validaciones automáticas.</p>'+hits.join("")
+    : '<b>No se detectaron coincidencias claras.</b><p class="muted small">Revisa manualmente las bases y anexos.</p>';
+}
+
+function calcularOferta(){
+  if(!$("presupuesto"))return;
+  const p=num($("presupuesto").value), o=num($("ofertaMonto").value);
+  if(p>0&&o>0){
+    const baja=((p-o)/p)*100;
+    $("baja").value=baja.toFixed(2)+"%";
+    $("estadoOferta").textContent="Oferta ingresada";
+    $("estadoOferta").className="status ok";
+    const dif=p-o;
+    $("analisisOferta").innerHTML='<div class="metric-line"><span>Diferencia contra presupuesto</span><b>'+esc(fmonto(Math.abs(dif)))+(dif>=0?" bajo presupuesto":" sobre presupuesto")+'</b></div>'+
+      '<div class="metric-line"><span>Porcentaje de baja</span><b>'+esc(baja.toFixed(2))+'%</b></div>'+
+      '<p class="muted small">Esto es matemática de la oferta, no una predicción de adjudicación. La posición depende de las bases y de las ofertas válidas de los demás participantes.</p>';
+  }else{
+    $("baja").value="";
+    $("estadoOferta").textContent="Sin oferta";
+    $("estadoOferta").className="status neutral";
+    $("analisisOferta").innerHTML='<span class="muted">Ingresa la oferta NG para calcular la baja respecto del presupuesto informado.</span>';
+  }
+}
+
+function calcularCriterios(){
+  const vals=[num($("pesoPrecio")?.value),num($("pesoPlazo")?.value),num($("pesoOtros")?.value)];
+  const total=vals.reduce((a,b)=>a+b,0);
+  if(!total){$("sumaCriterios").textContent="Pesos por confirmar en bases.";return}
+  $("sumaCriterios").innerHTML='<b>Total ponderaciones: '+total.toFixed(total%1?1:0)+'%</b>'+(Math.abs(total-100)>.01?' · <span class="bad">No suma 100%. Revisa las bases.</span>':' · <span class="good">Suma 100%.</span>');
+}
+
+function crearCartas(){
+  const nombre=detalle?.nombre||"";
+  const comprador=detalle?.comprador||"Organismo comprador";
+  if(!$("cartaPresentacion").value)$("cartaPresentacion").value=
+`Señores
+${comprador}
+
+Ref.: Licitación ${codigoActual} – ${nombre}
+
+NG Ingeniería y Servicios Ltda., RUT 77.060.047-2, presenta su oferta para el proceso indicado, declarando que los antecedentes administrativos, técnicos y económicos acompañados corresponden a su propuesta y se sujetan a las bases, anexos y aclaraciones vigentes.
+
+Saluda atentamente,
+NG Ingeniería y Servicios Ltda.`;
+  if(!$("cartaCompromiso").value)$("cartaCompromiso").value=
+`Señores
+${comprador}
+
+Ref.: Licitación ${codigoActual}
+
+NG Ingeniería y Servicios Ltda. manifiesta su compromiso de ejecutar las obligaciones que resulten adjudicadas conforme a la oferta presentada, las bases, anexos, aclaraciones y el contrato u orden de compra que corresponda.
+
+Este borrador debe ajustarse al anexo oficial si las bases lo exigen.`;
+}
+
+function renderCompetencia(){
+  if(!analisisMP){
+    $("competidores").innerHTML='<div class="empty">No hay datos estructurados de competidores en esta consulta.</div>';
+    return;
+  }
+  const prov=analisisMP.proveedoresAdjudicados||[];
+  const n=analisisMP.numeroOferentes;
+  let html='<div class="grid2">';
+  html+='<div class="kpi"><small>Número de oferentes informado</small><b>'+esc(n??"No informado")+'</b></div>';
+  html+='<div class="kpi"><small>Adjudicatarios detectados</small><b>'+esc(prov.length)+'</b></div></div>';
+  if(prov.length){
+    html+='<div class="competitor-list">'+prov.map(p=>'<div class="competitor"><div><b>'+esc(p.nombre||"Proveedor")+'</b><small>'+esc(p.rut||"RUT no informado")+'</small></div><span class="status ok">Adjudicatario detectado</span></div>').join("")+'</div>';
+  }else{
+    html+='<div class="empty">Aún no hay adjudicatarios detectados. Para comparar antes del resultado se necesitan ofertas válidas, criterios y puntajes oficiales.</div>';
+  }
+  $("competidores").innerHTML=html;
+}
 
 function renderResultado(){
- if(!analisis){$("analisisResultado").innerHTML='<span class="warn">No hay resultado estructurado disponible.</span>';return}
- let titulo='';if(analisis.resultadoNG==='ADJUDICADA_A_NG')titulo='<span class="good"><b>Resultado oficial detectado: adjudicada a NG.</b></span>';else if(analisis.resultadoNG==='NO_ADJUDICADA_A_NG')titulo='<span class="bad"><b>Resultado oficial detectado: no adjudicada a NG.</b></span>';else titulo='<span class="warn"><b>Proceso sin adjudicación oficial detectada.</b></span>';
- const adjud=(analisis.proveedoresAdjudicados||[]).map(x=>x.nombre).filter(Boolean).join(', ')||'No informado';
- $("analisisResultado").innerHTML=titulo+'<div class="grid3" style="margin-top:10px"><div class="kpi"><small>N° oferentes</small><b>'+esc(analisis.numeroOferentes??'No informado')+'</b></div><div class="kpi"><small>Adjudicatarios detectados</small><b>'+esc(adjud)+'</b></div><div class="kpi"><small>Monto adjudicado NG</small><b>'+esc(fmonto(analisis.montoAdjudicadoNG))+'</b></div></div>';
- $("faltantes").innerHTML='<b>Antes de la adjudicación:</b> para estimar una posición real se necesitan las ofertas de competidores y los criterios/puntajes de las bases. Si esos antecedentes no están disponibles, la app no debe concluir quién gana.';
+  if(!analisisMP){
+    $("analisisResultado").innerHTML='<div class="empty">No hay resultado estructurado disponible.</div>';
+    $("faltantes").innerHTML='<b>Sin conclusión:</b> faltan datos oficiales de resultado.';
+    return;
+  }
+  let title,cls;
+  if(analisisMP.resultadoNG==="ADJUDICADA_A_NG"){title="Adjudicada a NG";cls="ok"}
+  else if(analisisMP.resultadoNG==="NO_ADJUDICADA_A_NG"){title="No adjudicada a NG";cls="danger"}
+  else{title="Sin adjudicación oficial detectada";cls="warning"}
+  $("estadoResultado").textContent=title;
+  $("estadoResultado").className="status "+cls;
+  const prov=(analisisMP.proveedoresAdjudicados||[]).map(x=>x.nombre).filter(Boolean).join(", ")||"No informado";
+  $("analisisResultado").innerHTML=
+    '<div class="grid3">'+
+      '<div class="kpi"><small>Oferentes</small><b>'+esc(analisisMP.numeroOferentes??"No informado")+'</b></div>'+
+      '<div class="kpi"><small>Adjudicatario(s)</small><b>'+esc(prov)+'</b></div>'+
+      '<div class="kpi"><small>Monto adjudicado NG</small><b>'+esc(fmonto(analisisMP.montoAdjudicadoNG))+'</b></div>'+
+    '</div>';
+  $("faltantes").innerHTML=analisisMP.resultadoNG==="PENDIENTE"
+    ? '<b>Seguimiento abierto:</b> no existe adjudicación oficial detectada. La app no declarará un ganador antes de contar con antecedentes suficientes.'
+    : '<b>Resultado detectado desde la información pública disponible.</b> Para revisar puntajes, inadmisibilidades o fundamentos, contrasta con el acta y resolución oficial.';
 }
-function calcularBaja(){const p=Number($("presupuesto").value),o=Number(String($("ofertaMonto").value).replace(/[^0-9.-]/g,''));$("baja").value=p>0&&o>0?(((p-o)/p)*100).toFixed(2)+'%':''}
-function guardar(silent=false){if(!codigoActual)return;const ck={};checks.forEach(([id])=>ck[id]=!!$("ck_"+id)?.checked);const ids=['textoBases','riesgos','metodologia','experiencia','profesionales','plan','ofertaMonto','plazo','unidad','iva','cartaPresentacion','cartaCompromiso','consultaForo'];const data={ck};ids.forEach(id=>data[id]=$(id).value);localStorage.setItem(key(),JSON.stringify(data));if(!silent)$("guardado").textContent='Guardado en este dispositivo: '+new Date().toLocaleString('es-CL')}
-function restaurar(){const s=saved();for(const [k,v] of Object.entries(s)){if(k!=='ck'&&$(k))$(k).value=v}if(s.ck)checks.forEach(([id])=>{if($("ck_"+id))$("ck_"+id).checked=!!s.ck[id]});actualizarPct();calcularBaja()}
-async function copiarResumen(){const faltan=checks.filter(([id])=>!$("ck_"+id)?.checked).map(([,t])=>'• '+t).join('\n');const text=`NG Ingeniería y Servicios Ltda.\nLicitación: ${codigoActual} – ${detalle?.nombre||''}\n\nPendientes:\n${faltan||'Sin pendientes'}\n\nOferta NG: ${$("ofertaMonto").value||'Pendiente'}\nPlazo: ${$("plazo").value||'Pendiente'} ${$("unidad").value}\nIVA: ${$("iva").value}\n\nRiesgos / observaciones:\n${$("riesgos").value||'Sin registrar'}`;try{await navigator.clipboard.writeText(text);$("guardado").textContent='Resumen copiado.'}catch{$("guardado").textContent='No se pudo copiar automáticamente.'}}
 
-$("btnCargar").addEventListener('click',cargar);$("codigo").addEventListener('keydown',e=>{if(e.key==='Enter')cargar()});$("ofertaMonto").addEventListener('input',()=>{calcularBaja();guardar(true)});$("btnGuardar").addEventListener('click',()=>guardar(false));$("btnCopiar").addEventListener('click',copiarResumen);
-['textoBases','riesgos','metodologia','experiencia','profesionales','plan','plazo','unidad','iva','cartaPresentacion','cartaCompromiso','consultaForo'].forEach(id=>$(id).addEventListener('change',()=>guardar(true)));
-const qs=new URLSearchParams(location.search);const pre=qs.get('codigo');if(pre){$("codigo").value=pre.toUpperCase();cargar()}
+function guardar(silent=false){
+  if(!codigoActual)return;
+  const data=saved();
+  data.statuses=getStatuses();
+  const ids=["textoBases","riesgos","metodologia","experiencia","profesionales","plan","ofertaMonto","plazo","unidad","iva","pesoPrecio","pesoPlazo","pesoOtros","notasCompetencia","cartaPresentacion","cartaCompromiso","consultaForo"];
+  ids.forEach(id=>{if($(id))data[id]=$(id).value});
+  localStorage.setItem(key(),JSON.stringify(data));
+  if(!silent)$("guardado").textContent="Guardado en este dispositivo: "+now();
+}
+
+function restaurar(){
+  const s=saved();
+  const ids=["textoBases","riesgos","metodologia","experiencia","profesionales","plan","ofertaMonto","plazo","unidad","iva","pesoPrecio","pesoPlazo","pesoOtros","notasCompetencia","cartaPresentacion","cartaCompromiso","consultaForo"];
+  ids.forEach(id=>{if($(id)&&s[id]!==undefined)$(id).value=s[id]});
+  if(s.statuses){
+    requisitos.forEach(([id])=>{
+      const el=$("st_"+id);
+      if(el){el.value=s.statuses[id]||"pendiente";el.className="state-select "+statusClass(el.value)}
+    });
+  }
+  actualizarPct();
+  renderRequisitos();
+  actualizarSemaforo();
+  calcularOferta();
+  calcularCriterios();
+}
+
+async function copiarResumen(){
+  const st=getStatuses();
+  const pendientes=requisitos.filter(([id])=>!["confirmado","noaplica"].includes(st[id])).map(([id,t])=>"• "+t+" — "+statusLabel(st[id]||"pendiente")).join("\n");
+  const text=`NG Ingeniería y Servicios Ltda.
+Licitación: ${codigoActual} – ${detalle?.nombre||""}
+
+Estado de revisión:
+${pendientes||"Sin pendientes registrados"}
+
+Presupuesto: ${fmonto(detalle?.montoEstimado)}
+Oferta NG: ${$("ofertaMonto").value||"Pendiente"}
+Baja: ${$("baja").value||"Pendiente"}
+Plazo: ${$("plazo").value||"Pendiente"} ${$("unidad").value}
+IVA: ${$("iva").value}
+
+Riesgos / observaciones:
+${$("riesgos").value||"Sin registrar"}`;
+  try{await navigator.clipboard.writeText(text);$("guardado").textContent="Resumen copiado."}
+  catch{$("guardado").textContent="No se pudo copiar automáticamente."}
+}
+
+$("btnCargar").addEventListener("click",cargar);
+$("codigo").addEventListener("keydown",e=>{if(e.key==="Enter")cargar()});
+$("btnGuardar").addEventListener("click",()=>guardar(false));
+$("btnCopiar").addEventListener("click",copiarResumen);
+$("btnAnalizarTexto").addEventListener("click",analizarTextoBases);
+
+["textoBases","riesgos","metodologia","experiencia","profesionales","plan","ofertaMonto","plazo","unidad","iva","pesoPrecio","pesoPlazo","pesoOtros","notasCompetencia","cartaPresentacion","cartaCompromiso","consultaForo"].forEach(id=>{
+  $(id).addEventListener("input",()=>{
+    if(id==="ofertaMonto")calcularOferta();
+    if(["pesoPrecio","pesoPlazo","pesoOtros"].includes(id))calcularCriterios();
+    guardar(true);
+  });
+});
+
+const qs=new URLSearchParams(location.search);
+const pre=qs.get("codigo");
+if(pre){$("codigo").value=pre.toUpperCase();cargar()}
