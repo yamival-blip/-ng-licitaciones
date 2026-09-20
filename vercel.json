@@ -1,23 +1,33 @@
 {
-
-  "rewrites": [
-
+  "headers": [
     {
-
-      "source": "/api/:path*",
-
-      "destination": "/api/:path*"
-
+      "source": "/",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
+      ]
     },
-
     {
-
-      "source": "/(.*)",
-
-      "destination": "/public/$1"
-
+      "source": "/analisis.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
     }
-
+  ],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/public/$1"
+    }
   ]
-
 }
