@@ -1,1 +1,128 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f172a"><link rel="manifest" href="/manifest.webmanifest"><link rel="stylesheet" href="/styles.css"><title>NG · Licitaciones</title></head><body><div class="wrap"><div class="top"><div><h1 style="margin:0">NG · Licitaciones</h1><div class="muted">Preparación de ofertas · seguimiento · análisis</div></div><span class="badge">NG Ingeniería · v3.0</span></div><div class="card"><label for="codigo">ID de licitación</label><div class="row"><input id="codigo" style="flex:1;min-width:220px" placeholder="Ej: 812799-38-LR26" autocapitalize="characters"><button id="btnAgregar" class="primary">Agregar y revisar</button></div><p class="muted">Consulta Mercado Público y abre un flujo separado para preparar la oferta y analizar el resultado.</p></div><div class="card"><div class="grid"><div class="kpi"><small>Procesos guardados</small><b id="count">0</b></div><div class="kpi"><small>Última actualización</small><b id="last">—</b></div></div></div><div class="card"><h2 style="margin-top:0">Licitaciones NG</h2><div id="items"></div></div><div class="card"><h2 style="margin-top:0">Cómo trabaja esta versión</h2><div class="note"><b>Preparar oferta NG:</b> ficha, bases y riesgos, visita, garantías, experiencia, profesionales, oferta técnica, oferta económica, cartas, checklist y guardado.<br><br><b>Analizar resultado:</b> adjudicación y antecedentes oficiales disponibles. Si faltan competidores o criterios, la app lo dice y no inventa un ganador.</div></div><div class="version">Sistema interno de apoyo a NG Ingeniería. Los antecedentes oficiales corresponden a Mercado Público y al organismo comprador.</div></div><script src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07111f">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/home-v5.css">
+  <title>NG · Licitaciones</title>
+</head>
+<body>
+<div class="wrap home-wrap">
+  <header class="topbar home-topbar">
+    <div>
+      <div class="eyebrow">NG Ingeniería · Inteligencia de Compras Públicas</div>
+      <h1>NG · Licitaciones</h1>
+      <div class="muted">Oportunidades · análisis · preparación · competencia · seguimiento</div>
+    </div>
+    <div class="top-actions">
+      <span class="badge">v5.0</span>
+      <span class="live-pill"><span class="live-dot"></span> Mercado Público</span>
+    </div>
+  </header>
+
+  <section class="hero-grid">
+    <div class="card hero-card">
+      <span class="section-kicker">BUSCAR POR ID</span>
+      <h2>Revisar una licitación completa</h2>
+      <p class="muted">Abre la ficha de NG para revisar requisitos, oferta, competencia, documentos y resultado.</p>
+      <div class="search-row">
+        <input id="codigo" placeholder="Ej: 2384-22-LR26" autocapitalize="characters" autocomplete="off">
+        <button id="btnAbrir" class="primary">Analizar</button>
+      </div>
+    </div>
+
+    <div class="card hero-card">
+      <span class="section-kicker">OPORTUNIDADES</span>
+      <h2>Buscar negocios automáticamente</h2>
+      <p class="muted">Consulta procesos publicados por fecha y prioriza los que calzan con el perfil de NG.</p>
+      <div class="search-row date-search">
+        <input id="fechaBusqueda" type="date">
+        <button id="btnBuscar" class="secondary">Buscar oportunidades</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="kpi-strip">
+    <div class="kpi"><small>Negocios guardados</small><b id="kpiGuardados">0</b></div>
+    <div class="kpi"><small>Oportunidades encontradas</small><b id="kpiOportunidades">0</b></div>
+    <div class="kpi"><small>Adjudicadas a NG detectadas</small><b id="kpiGanadas">0</b></div>
+    <div class="kpi"><small>Alertas locales</small><b id="kpiAlertas">0</b></div>
+  </section>
+
+  <section class="card profile-card">
+    <div class="section-head">
+      <div><span class="section-kicker">PERFIL NG</span><h2>Qué debe buscar el sistema</h2></div>
+      <span class="status ok">Activo</span>
+    </div>
+    <div class="profile-chips" id="perfilChips"></div>
+    <p class="muted small">La priorización es una ayuda de búsqueda. La admisibilidad y conveniencia real se validan en la ficha y en las bases oficiales.</p>
+  </section>
+
+  <nav class="feature-grid" aria-label="Módulos NG Licitaciones">
+    <a class="feature-card" href="#oportunidades"><span>01</span><b>Buscar oportunidades</b><small>Filtrar por rubro, zona, monto y cierre.</small></a>
+    <a class="feature-card" href="#comprador"><span>02</span><b>Entender al comprador</b><small>Revisar los datos públicos que vienen con cada proceso.</small></a>
+    <a class="feature-card" href="#ngia"><span>03</span><b>Preguntarle a NG IA</b><small>Consultar lo que ya está disponible sin inventar datos.</small></a>
+    <a class="feature-card" href="#negocios"><span>04</span><b>Gestión y seguimiento</b><small>Guardar procesos y registrar cambios de estado.</small></a>
+    <a class="feature-card" href="#competencia"><span>05</span><b>Competencia</b><small>Adjudicatarios y antecedentes oficiales detectados.</small></a>
+    <a class="feature-card" href="#alertas"><span>06</span><b>Alertas</b><small>Cambios detectados cuando vuelves a consultar.</small></a>
+  </nav>
+
+  <section id="oportunidades" class="card">
+    <div class="section-head">
+      <div><span class="section-kicker">01 · OPORTUNIDADES</span><h2>Negocios para revisar</h2></div>
+      <span id="estadoBusqueda" class="status neutral">Sin búsqueda</span>
+    </div>
+    <div class="filter-grid">
+      <div><label for="filtroTexto">Palabra clave</label><input id="filtroTexto" placeholder="Ej: radier, cierre, eléctrico"></div>
+      <div><label for="filtroZona">Zona</label><select id="filtroZona"><option value="">Todas</option><option>Antofagasta</option><option>Calama</option><option>Tocopilla</option><option>Mejillones</option></select></div>
+      <div><label for="filtroCalce">Perfil NG</label><select id="filtroCalce"><option value="todos">Todos</option><option value="ng">Solo sugeridos para NG</option></select></div>
+    </div>
+    <div id="resultadoOportunidades" class="opportunity-list"><div class="empty">Presiona “Buscar oportunidades” para consultar Mercado Público.</div></div>
+  </section>
+
+  <section class="grid2 home-two-col">
+    <div id="comprador" class="card">
+      <div class="section-head"><div><span class="section-kicker">02 · COMPRADOR</span><h2>Entender al comprador</h2></div><span class="mini">Datos públicos</span></div>
+      <div id="buyerPanel" class="empty">Selecciona “Ver comprador” en una oportunidad para revisar sus datos.</div>
+    </div>
+
+    <div id="ngia" class="card">
+      <div class="section-head"><div><span class="section-kicker">03 · NG IA</span><h2>Pregunta sobre el proceso</h2></div><span class="status ok">Lista</span></div>
+      <p class="muted small">Responde con los antecedentes cargados en esta pantalla. Para criterios, visitas, garantías o anexos que no vengan en la API, te mandará a revisar las bases en la ficha.</p>
+      <label for="iaPregunta">Pregunta</label>
+      <div class="search-row">
+        <input id="iaPregunta" placeholder="Ej: ¿cuándo cierra? / ¿quién compra? / ¿NG ganó?">
+        <button id="btnIA" class="secondary">Preguntar</button>
+      </div>
+      <div id="iaRespuesta" class="analysis-box" style="margin-top:10px">Selecciona primero una oportunidad.</div>
+    </div>
+  </section>
+
+  <section id="negocios" class="card">
+    <div class="section-head"><div><span class="section-kicker">04 · GESTIÓN</span><h2>Mis negocios</h2></div><span id="negociosCount" class="mini">0</span></div>
+    <div id="listaNegocios" class="business-list"><div class="empty">Todavía no has guardado procesos.</div></div>
+  </section>
+
+  <section id="competencia" class="card">
+    <div class="section-head"><div><span class="section-kicker">05 · COMPETENCIA</span><h2>Inteligencia competitiva disponible</h2></div><span class="status warning">Sin inventar</span></div>
+    <div class="grid3">
+      <div class="kpi"><small>Adjudicatarios detectados</small><b id="compAdjudicatarios">0</b></div>
+      <div class="kpi"><small>Procesos con número de oferentes</small><b id="compOferentes">0</b></div>
+      <div class="kpi"><small>Historial guardado localmente</small><b id="compHistorial">0</b></div>
+    </div>
+    <div id="competenciaPanel" class="note" style="margin-top:12px">Al consultar procesos adjudicados, la app irá acumulando adjudicatarios detectados. El historial profundo de precios y postulaciones requiere fuentes adicionales de Mercado Público/Datos Abiertos.</div>
+  </section>
+
+  <section id="alertas" class="card">
+    <div class="section-head"><div><span class="section-kicker">06 · ALERTAS</span><h2>Cambios detectados</h2></div><button id="btnLimpiarAlertas" class="ghost">Limpiar</button></div>
+    <div id="listaAlertas"><div class="empty">Sin cambios registrados.</div></div>
+  </section>
+
+  <footer class="footer-note">Sistema interno de apoyo a NG Ingeniería. La decisión final debe contrastarse siempre con Mercado Público, bases, anexos, foro, actas y resoluciones oficiales.</footer>
+</div>
+<script src="/home-v5.js"></script>
+</body>
+</html>
