@@ -175,3 +175,38 @@ button{border:1px solid #38516d;border-radius:12px;padding:11px 14px;font-weight
     justify-self:start;
   }
 }
+
+
+/* v5.2 · Estados automáticos Mercado Público */
+.status.info{
+  color:#a9d7ff;
+  background:rgba(74,163,255,.13);
+  border-color:rgba(74,163,255,.35);
+}
+.state-select.info{border-color:#3976a8}
+.auto-facts{
+  margin-bottom:14px;
+  padding:13px;
+  border:1px solid #2d5579;
+  border-radius:14px;
+  background:rgba(30,73,112,.13);
+}
+.auto-facts-title{
+  font-size:13px;
+  font-weight:850;
+  color:#b9dcff;
+  margin-bottom:8px;
+}
+.auto-fact{
+  display:grid;
+  grid-template-columns:minmax(130px,.7fr) minmax(0,1.3fr);
+  gap:10px;
+  padding:8px 0;
+  border-bottom:1px solid rgba(77,121,158,.28);
+}
+.auto-fact:last-child{border-bottom:0}
+.auto-fact span{color:#8fa8c0;font-size:12px}
+.auto-fact b{font-size:12px;line-height:1.4}
+@media(max-width:620px){
+  .auto-fact{grid-template-columns:1fr;gap:3px}
+}
