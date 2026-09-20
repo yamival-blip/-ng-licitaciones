@@ -118,3 +118,60 @@ button{border:1px solid #38516d;border-radius:12px;padding:11px 14px;font-weight
   .card{background:white;color:black;border:1px solid #bbb;box-shadow:none;break-inside:avoid}
   .muted,.requirement small,.checktext small{color:#555}
 }
+
+/* v5.1 · Corrección móvil iPhone */
+@media(max-width:620px){
+  .wrap{
+    width:100%;
+    max-width:100%;
+    padding:12px 10px calc(24px + env(safe-area-inset-bottom));
+    overflow-x:hidden;
+  }
+  .tabs{
+    position:static;
+    top:auto;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+    overflow:visible;
+    margin:10px 0 12px;
+    padding:10px;
+    backdrop-filter:none;
+  }
+  .tab{
+    width:100%;
+    min-width:0;
+    white-space:normal;
+    line-height:1.15;
+    text-align:center;
+    padding:11px 8px;
+  }
+  .toolbar{
+    position:static;
+    bottom:auto;
+    z-index:auto;
+    margin-top:14px;
+    box-shadow:none;
+  }
+  .toolbar .row{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+    width:100%;
+  }
+  .toolbar .row button{
+    width:100%;
+    min-width:0;
+    white-space:normal;
+  }
+  .toolbar .row button:last-child{
+    grid-column:1 / -1;
+  }
+  .requirement{
+    grid-template-columns:minmax(0,1fr);
+    gap:8px;
+  }
+  .requirement .status{
+    justify-self:start;
+  }
+}
