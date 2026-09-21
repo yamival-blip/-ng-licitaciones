@@ -40,7 +40,7 @@ function addBusiness(o) {
   setSaved(arr); refreshDashboard(); renderOpportunities();
 }
 function removeBusiness(codigo) { setSaved(saved().filter(x => x.codigo !== codigo)); refreshDashboard(); renderOpportunities(); }
-function openAnalysis(codigo, tab) { location.href = "/revision-ng-v53.html?codigo=" + encodeURIComponent(codigo) + "#" + (tab || "resumen"); }
+function openAnalysis(codigo, tab) { location.href = "/analisis.html?codigo=" + encodeURIComponent(codigo) + "#" + (tab || "resumen"); }
 function recordState(o) {
   if (!o || !o.codigo) return;
   const arr = history(); const prev = arr.find(x => x.codigo === o.codigo);
