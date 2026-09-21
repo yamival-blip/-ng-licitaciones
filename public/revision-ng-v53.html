@@ -3,193 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#07111f">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="/revision-ng-v53.css">
   <title>NG · Licitaciones</title>
+  <script>
+    (function () {
+      var target = "/analisis.html" + window.location.search + window.location.hash;
+      window.location.replace(target);
+    })();
+  </script>
 </head>
 <body>
-<div class="wrap">
-  <header class="topbar">
-    <div>
-      <div class="eyebrow">NG Ingeniería · Compras Públicas</div>
-      <h1>NG · Licitaciones</h1>
-      <div class="muted">Buscar · analizar · preparar · seguir · competir</div>
-    </div>
-    <div class="top-actions">
-      <span class="badge">v5.3</span>
-      <button class="ghost" onclick="location.href='/'">← Inicio</button>
-    </div>
-  </header>
-
-  <section class="card search-card">
-    <label for="codigo">ID de licitación</label>
-    <div class="search-row">
-      <input id="codigo" placeholder="Ej: 2430-73-LR26" autocapitalize="characters" autocomplete="off">
-      <button id="btnCargar" class="primary">Analizar licitación</button>
-    </div>
-    <p class="rule"><b>Regla NG:</b> el sistema no marca nada como cumplido si no existe respaldo. Lo que Mercado Público entregue se marca como <b>Detectado en MP</b>. Lo que solo esté en bases o anexos queda como <b>Falta leer bases</b> hasta verificarlo.</p>
-  </section>
-
-  <section id="estado" class="card muted">Ingresa un ID para comenzar.</section>
-
-  <main id="app" hidden>
-    <nav class="tabs card" aria-label="Secciones">
-      <button class="tab active" data-tab="resumen">Resumen</button>
-      <button class="tab" data-tab="bases">Bases</button>
-      <button class="tab" data-tab="postulacion">Postulación</button>
-      <button class="tab" data-tab="analisis">Análisis</button>
-      <button class="tab" data-tab="competencia">Competencia</button>
-      <button class="tab" data-tab="documentos">Documentos</button>
-      <button class="tab" data-tab="resultado">Resultado</button>
-    </nav>
-
-    <section id="resumen" class="panel active">
-      <div id="alertaPrincipal"></div>
-      <div class="card">
-        <div class="section-head">
-          <div><span class="section-kicker">OPORTUNIDAD</span><h2 id="nombreLicitacion">Licitación</h2></div>
-          <span id="estadoLicitacion" class="status neutral">—</span>
-        </div>
-        <div id="datosClave" class="grid4"></div>
-        <div id="descripcion" class="note" style="margin-top:12px"></div>
-      </div>
-
-      <div class="grid2">
-        <div class="card">
-          <div class="section-head"><h2>Fechas clave</h2><span class="mini">Mercado Público</span></div>
-          <div id="fechasClave" class="timeline"></div>
-        </div>
-        <div class="card">
-          <div class="section-head"><h2>Semáforo NG</h2><span id="semaforoGeneral" class="status neutral">Por revisar</span></div>
-          <div id="semaforoDetalle"></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="section-head"><h2>Ítems de la licitación</h2><span id="totalItems" class="mini"></span></div>
-        <div id="itemsLicitacion" class="muted">Sin ítems informados.</div>
-      </div>
-    </section>
-
-    <section id="bases" class="panel">
-      <div class="card">
-        <div class="section-head">
-          <div><span class="section-kicker">REVISIÓN</span><h2>Bases y requisitos</h2></div>
-          <span id="estadoBases" class="status warning">Falta leer bases</span>
-        </div>
-        <p class="muted">La app completa automáticamente los datos que entrega Mercado Público y separa lo que todavía exige revisar bases, anexos o respaldos de NG.</p>
-        <div id="requisitos" class="requirements"></div>
-      </div>
-
-      <div class="card">
-        <h2>Resumen de bases / foro</h2>
-        <textarea id="textoBases" placeholder="Pega aquí extractos de bases, anexos o foro. Se guardan automáticamente."></textarea>
-        <div class="row" style="margin-top:10px">
-          <button id="btnAnalizarTexto" class="secondary">Extraer datos del texto</button>
-          <span class="muted small">Ayuda a detectar palabras clave; siempre debes contrastar con el documento oficial.</span>
-        </div>
-        <div id="hallazgosTexto" class="analysis-box" hidden></div>
-      </div>
-
-      <div class="card">
-        <h2>Riesgos de inadmisibilidad</h2>
-        <textarea id="riesgos" placeholder="Ej.: visita obligatoria no acreditada; anexo sin firma; profesional no cumple..."></textarea>
-      </div>
-    </section>
-
-    <section id="postulacion" class="panel">
-      <div class="card">
-        <div class="section-head">
-          <div><span class="section-kicker">CONTROL</span><h2>Checklist real de postulación</h2></div>
-          <span id="pct" class="badge">0%</span>
-        </div>
-        <div class="progress"><div id="bar" class="bar"></div></div>
-        <p class="muted small">El avance sube solo cuando un requisito queda como <b>Cumple / confirmado</b> o <b>No aplica</b>. “Detectado en MP” informa el requisito, pero no significa que NG ya lo cumpla.</p>
-        <div id="checklist"></div>
-      </div>
-
-      <div class="card">
-        <h2>Oferta técnica</h2>
-        <div class="grid2">
-          <div><label>Metodología / ejecución</label><textarea id="metodologia"></textarea></div>
-          <div><label>Experiencia acreditable</label><textarea id="experiencia"></textarea></div>
-          <div><label>Profesionales / equipo</label><textarea id="profesionales"></textarea></div>
-          <div><label>Plan de trabajo / hitos</label><textarea id="plan"></textarea></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="analisis" class="panel">
-      <div class="card">
-        <div class="section-head"><div><span class="section-kicker">ESTRATEGIA</span><h2>Análisis de oferta</h2></div><span id="estadoOferta" class="status neutral">Sin oferta</span></div>
-        <div class="grid3">
-          <div><label>Presupuesto informado</label><input id="presupuesto" readonly></div>
-          <div><label>Oferta NG</label><input id="ofertaMonto" inputmode="decimal" placeholder="Monto total"></div>
-          <div><label>Baja vs presupuesto</label><input id="baja" readonly></div>
-          <div><label>Plazo ofertado</label><input id="plazo" inputmode="numeric" placeholder="Ej: 90"></div>
-          <div><label>Unidad de plazo</label><select id="unidad"><option>Falta definir</option><option>Días corridos</option><option>Días hábiles</option><option>Meses</option></select></div>
-          <div><label>Tratamiento IVA</label><select id="iva"><option>Falta definir</option><option>Neto + IVA</option><option>IVA incluido</option><option>Exento / no aplica</option></select></div>
-        </div>
-        <div id="analisisOferta" class="analysis-box" style="margin-top:12px"></div>
-      </div>
-
-      <div class="card">
-        <h2>Criterios de evaluación</h2>
-        <div class="grid3">
-          <div><label>Precio (%)</label><input id="pesoPrecio" inputmode="decimal" placeholder="Ej: 40"></div>
-          <div><label>Plazo (%)</label><input id="pesoPlazo" inputmode="decimal" placeholder="Ej: 20"></div>
-          <div><label>Técnico / otros (%)</label><input id="pesoOtros" inputmode="decimal" placeholder="Ej: 40"></div>
-        </div>
-        <div id="sumaCriterios" class="note small" style="margin-top:10px">Pesos pendientes de lectura de bases.</div>
-      </div>
-    </section>
-
-    <section id="competencia" class="panel">
-      <div class="card">
-        <div class="section-head">
-          <div><span class="section-kicker">INTELIGENCIA DE MERCADO</span><h2>Competencia</h2></div>
-          <span class="status warning">Datos oficiales primero</span>
-        </div>
-        <p class="muted">La app mostrará competidores solo cuando existan datos de oferentes, adjudicación o historial disponible. No inventará nombres, precios ni probabilidades.</p>
-        <div id="competidores"></div>
-      </div>
-      <div class="card">
-        <h2>Notas de estrategia</h2>
-        <textarea id="notasCompetencia" placeholder="Competidores esperados, porcentaje de baja histórico, observaciones..."></textarea>
-      </div>
-    </section>
-
-    <section id="documentos" class="panel">
-      <div class="card">
-        <div class="section-head"><div><span class="section-kicker">EXPEDIENTE</span><h2>Documentos y cartas</h2></div><span class="mini">Autoguardado</span></div>
-        <div class="note small">Si las bases entregan un anexo oficial, ese formato manda. Estas cartas son borradores de apoyo.</div>
-        <label style="margin-top:14px">Carta de presentación</label><textarea id="cartaPresentacion"></textarea>
-        <label>Carta de compromiso</label><textarea id="cartaCompromiso"></textarea>
-        <label>Consulta para foro</label><textarea id="consultaForo"></textarea>
-      </div>
-    </section>
-
-    <section id="resultado" class="panel">
-      <div class="card">
-        <div class="section-head"><div><span class="section-kicker">SEGUIMIENTO</span><h2>Resultado / adjudicación</h2></div><span id="estadoResultado" class="status neutral">En seguimiento</span></div>
-        <div id="analisisResultado"></div>
-        <div id="faltantes" class="note" style="margin-top:12px"></div>
-      </div>
-    </section>
-
-    <div class="card toolbar">
-      <div class="row">
-        <button class="primary" id="btnGuardar">Guardar</button>
-        <button class="secondary" id="btnCopiar">Copiar resumen</button>
-        <button class="secondary" onclick="window.print()">Imprimir / PDF</button>
-      </div>
-      <div id="guardado" class="muted small"></div>
-    </div>
-  </main>
-</div>
-<script src="/revision-ng-v53.js"></script>
+  <p>Abriendo la versión actual de NG · Licitaciones…</p>
+  <p><a id="go" href="/analisis.html">Continuar</a></p>
+  <script>
+    document.getElementById("go").href = "/analisis.html" + window.location.search + window.location.hash;
+  </script>
 </body>
 </html>
