@@ -7,7 +7,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="/styles.css?v=5.3.0">
+  <link rel="stylesheet" href="/styles.css?v=5.4.0">
   <title>NG · Licitaciones</title>
 </head>
 <body>
@@ -19,7 +19,7 @@
       <div class="muted">Buscar · analizar · preparar · seguir · competir</div>
     </div>
     <div class="top-actions">
-      <span class="badge">v5.0</span>
+      <span class="badge">v5.4</span>
       <button class="ghost" onclick="location.href='/'">← Inicio</button>
     </div>
   </header>
@@ -30,7 +30,7 @@
       <input id="codigo" placeholder="Ej: 2430-73-LR26" autocapitalize="characters" autocomplete="off">
       <button id="btnCargar" class="primary">Analizar licitación</button>
     </div>
-    <p class="rule"><b>Regla NG:</b> el sistema no marca nada como cumplido si no existe respaldo. Lo que Mercado Público entregue se marca como <b>Detectado en MP</b>. Lo que solo esté en bases o anexos queda como <b>Falta leer bases</b> hasta verificarlo.</p>
+    <p class="rule"><b>Regla NG:</b> al analizar un ID, la app consulta Mercado Público y luego intenta localizar, descargar y leer automáticamente bases, anexos y documentos asociados. Detectar un requisito no significa que NG ya lo cumpla: el cumplimiento se confirma solo cuando existe respaldo de NG.</p>
   </section>
 
   <section id="estado" class="card muted">Ingresa un ID para comenzar.</section>
@@ -77,19 +77,20 @@
     <section id="bases" class="panel">
       <div class="card">
         <div class="section-head">
-          <div><span class="section-kicker">REVISIÓN</span><h2>Bases y requisitos</h2></div>
-          <span id="estadoBases" class="status warning">Falta leer bases</span>
+          <div><span class="section-kicker">REVISIÓN AUTOMÁTICA</span><h2>Bases y requisitos</h2></div>
+          <span id="estadoBases" class="status info">Analizando bases</span>
         </div>
-        <p class="muted">La app completa automáticamente los datos que entrega Mercado Público y separa lo que todavía exige revisar bases, anexos o respaldos de NG.</p>
+        <p class="muted">La app intenta leer automáticamente los documentos disponibles de Mercado Público y muestra el texto encontrado junto con su fuente. Si algo no aparece, lo marca como “No encontrado” o “Falta antecedente”, sin inventarlo.</p>
+        <div id="documentosBases" class="analysis-box" style="margin:12px 0"><span class="loader"></span> Esperando lectura automática…</div>
         <div id="requisitos" class="requirements"></div>
       </div>
 
       <div class="card">
-        <h2>Resumen de bases / foro</h2>
-        <textarea id="textoBases" placeholder="Pega aquí extractos de bases, anexos o foro. Se guardan automáticamente."></textarea>
+        <h2>Respaldo manual / foro</h2>
+        <textarea id="textoBases" placeholder="Si algún PDF, anexo o respuesta no pudo leerse automáticamente, pega aquí el extracto y la app buscará los puntos importantes."></textarea>
         <div class="row" style="margin-top:10px">
           <button id="btnAnalizarTexto" class="secondary">Extraer datos del texto</button>
-          <span class="muted small">Ayuda a detectar palabras clave; siempre debes contrastar con el documento oficial.</span>
+          <span class="muted small">Úsalo como respaldo cuando el documento oficial no sea legible automáticamente.</span>
         </div>
         <div id="hallazgosTexto" class="analysis-box" hidden></div>
       </div>
@@ -107,7 +108,7 @@
           <span id="pct" class="badge">0%</span>
         </div>
         <div class="progress"><div id="bar" class="bar"></div></div>
-        <p class="muted small">El avance sube solo cuando un requisito queda como <b>Cumple / confirmado</b> o <b>No aplica</b>. “Detectado en MP” informa el requisito, pero no significa que NG ya lo cumpla.</p>
+        <p class="muted small">El avance sube solo cuando un requisito queda como <b>Cumple / confirmado</b> o <b>No aplica</b>. “Detectado en bases / MP” informa lo exigido, pero no significa que NG ya tenga el respaldo.</p>
         <div id="checklist"></div>
       </div>
 
@@ -143,7 +144,7 @@
           <div><label>Plazo (%)</label><input id="pesoPlazo" inputmode="decimal" placeholder="Ej: 20"></div>
           <div><label>Técnico / otros (%)</label><input id="pesoOtros" inputmode="decimal" placeholder="Ej: 40"></div>
         </div>
-        <div id="sumaCriterios" class="note small" style="margin-top:10px">Pesos pendientes de lectura de bases.</div>
+        <div id="sumaCriterios" class="note small" style="margin-top:10px">Leyendo criterios en bases…</div>
       </div>
     </section>
 
@@ -190,6 +191,6 @@
     </div>
   </main>
 </div>
-<script src="/analisis.js?v=5.3.0"></script>
+<script src="/analisis-v54.js?v=5.4.0"></script>
 </body>
 </html>
