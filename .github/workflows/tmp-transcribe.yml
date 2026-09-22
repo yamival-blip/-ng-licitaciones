@@ -1,0 +1,27 @@
+name: Transcribe Chinese Audio
+on:
+  push:
+    branches: [tmp-audio-transcribe-20260921]
+jobs:
+  transcribe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install faster-whisper
+      - name: Rebuild audio
+        run: cat .tmp_audio/chunk_*.txt | base64 -d > /tmp/audio.ogg
+      - name: Transcribe
+        run: |
+          python - <<'PY'
+          from faster_whisper import WhisperModel
+          model = WhisperModel("base", device="cpu", compute_type="int8")
+          segments, info = model.transcribe("/tmp/audio.ogg", language="zh", beam_size=5, vad_filter=True)
+          print("LANGUAGE:", info.language)
+          print("===TRANSCRIPT===")
+          for s in segments:
+              print(f"[{s.start:.1f}-{s.end:.1f}] {s.text}")
+          print("===END===")
+          PY
