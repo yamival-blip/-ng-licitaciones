@@ -57,6 +57,11 @@ function mpEvidence(id){
   return "";
 }
 function baseResult(id){return analisisBases?.requisitos?.[id]||null}
+function baseStats(){
+  const docs=analisisBases?.documentosAnalizados||[];
+  const leidos=docs.filter(d=>Number(d.caracteres)>0);
+  return {docs,leidos,encontrados:Number(analisisBases?.documentosEncontrados||0),fichaLeida:!!analisisBases?.fichaPublica?.leida};
+}
 function autoEvidence(id){
   const br=baseResult(id);
   if(br?.found){
@@ -64,23 +69,24 @@ function autoEvidence(id){
     return (id==="bases"?"":"Bases: ")+(br.summary||"Requisito detectado.")+fuente;
   }
   const mp=mpEvidence(id); if(mp)return mp;
-  if(analisisBases===null)return "Leyendo bases y anexos automáticamente…";
-  if(analisisBases?.ok&&br)return br.summary||"No encontrado en los documentos revisados.";
-  if(analisisBases?.ok)return "No encontrado en los documentos revisados.";
+  if(analisisBases===null)return "Leyendo fuentes oficiales de Mercado Público…";
+  if(analisisBases?.ok&&baseStats().leidos.length>0&&br)return br.summary||"No encontrado en las fuentes oficiales revisadas.";
+  if(analisisBases?.ok&&baseStats().leidos.length>0)return "No encontrado en las fuentes oficiales revisadas.";
+  if(analisisBases?.ok)return "Falta antecedente: no hubo texto oficial legible para verificar este requisito.";
   return "Falta antecedente: la lectura automática no estuvo disponible.";
 }
 function autoState(id){
   const br=baseResult(id);
   if(br?.found||mpEvidence(id))return"detectado";
   if(analisisBases===null)return"analizando";
-  if(analisisBases?.ok)return"noencontrado";
+  if(analisisBases?.ok&&baseStats().leidos.length>0)return"noencontrado";
   return"faltante";
 }
 function effectiveState(id,st){const v=st&&st[id];return["confirmado","bloqueo","noaplica"].includes(v)?v:autoState(id)}
 function automaticFacts(){
   const r=detalle?.raw||{},facts=[];
-  if(analisisBases?.ok){const docs=analisisBases.documentosAnalizados||[];facts.push(["Bases y anexos",docs.filter(d=>Number(d.caracteres)>0).length+" documento(s) leídos de "+(analisisBases.documentosEncontrados||docs.length)+" encontrado(s)"])}
-  else if(analisisBases===null)facts.push(["Bases y anexos","Lectura automática en curso…"]);
+  if(analisisBases?.ok){const bs=baseStats();facts.push(["Fuentes oficiales",bs.leidos.length?bs.leidos.length+" fuente(s) con texto analizado · "+bs.encontrados+" archivo(s) adjunto(s) localizado(s)":"Sin texto oficial legible para análisis"])}
+  else if(analisisBases===null)facts.push(["Fuentes oficiales","Lectura automática en curso…"]);
   const visita=mpEvidence("visita");if(visita)facts.push(["Visita / reunión",visita]);
   const plazo=mpEvidence("plazo");if(plazo)facts.push(["Duración / plazo",plazo]);
   const foro=mpEvidence("foro");if(foro)facts.push(["Foro",foro]);
@@ -96,7 +102,8 @@ document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>setT
 
 async function cargar(){
   const c=$("codigo").value.trim().toUpperCase();if(!c)return;
-  codigoActual=c;analisisBases=null;
+  const btn=$("btnCargar");btn.disabled=true;
+  codigoActual=c;detalle=null;analisisMP=null;analisisBases=null;
   $("estado").innerHTML='<span class="loader"></span> Consultando Mercado Público…';$("app").hidden=true;
   try{
     const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),18000);
@@ -110,8 +117,18 @@ async function cargar(){
     $("estado").innerHTML='<span class="loader"></span><b>Licitación cargada.</b> Leyendo bases y anexos automáticamente…';$("app").hidden=false;
     const hash=location.hash.replace("#","");if(["resumen","bases","postulacion","analisis","competencia","documentos","resultado"].includes(hash))setTab(hash);
     await cargarBasesAutomatica(c);
-    $("estado").innerHTML='<span class="good-dot"></span><b>Análisis cargado:</b> '+esc(c)+' · '+esc(detalle.nombre||"");
-  }catch(e){const msg=e.name==="AbortError"?"La consulta tardó demasiado. Intenta nuevamente.":e.message;$("estado").innerHTML='<span class="bad"><b>No se pudo cargar la licitación.</b></span><br>'+esc(msg)}
+    const bs=baseStats();
+    if(!analisisBases?.ok){
+      $("estado").innerHTML='<span class="bad"><b>Ficha cargada, pero la lectura de bases falló.</b></span><br>'+esc(analisisBases?.error||"Falta antecedente.");
+    }else if(!bs.leidos.length){
+      $("estado").innerHTML='<span class="bad"><b>Ficha cargada, sin análisis de bases.</b></span><br>No se obtuvo texto oficial legible; la app no dará por analizados requisitos que no pudo verificar.';
+    }else{
+      $("estado").innerHTML='<span class="good-dot"></span><b>Análisis verificado:</b> '+esc(c)+' · '+esc(detalle.nombre||"")+' · '+esc(bs.leidos.length)+' fuente(s) oficial(es) leída(s)';
+    }
+  }catch(e){
+    const msg=e.name==="AbortError"?"La consulta tardó demasiado. Intenta nuevamente.":e.message;
+    $("estado").innerHTML='<span class="bad"><b>No se pudo cargar la licitación.</b></span><br>'+esc(msg);
+  }finally{btn.disabled=false}
 }
 
 async function cargarBasesAutomatica(c){
@@ -149,9 +166,10 @@ function renderDocumentosBases(){
   const root=$("documentosBases");if(!root)return;
   if(analisisBases===null){root.innerHTML='<span class="loader"></span> Leyendo documentos oficiales de Mercado Público…';return}
   if(!analisisBases?.ok){root.innerHTML='<b>Lectura automática no disponible.</b><br><span class="muted small">'+esc(analisisBases?.error||"Falta antecedente.")+'</span>';return}
-  const docs=analisisBases.documentosAnalizados||[],warnings=analisisBases.advertencias||[];
-  let html='<div class="doc-summary"><b>'+esc(docs.filter(d=>Number(d.caracteres)>0).length)+' documento(s) con texto analizado</b><span>'+esc(analisisBases.documentosEncontrados||0)+' archivo(s) localizado(s) en Mercado Público</span></div>';
-  if(docs.length)html+='<div class="doc-list">'+docs.map(d=>'<div class="doc-row"><div><b>'+esc(d.nombre)+'</b><small>'+esc(d.error||((d.caracteres||0).toLocaleString("es-CL")+" caracteres leídos"))+'</small></div><span class="status '+(d.error?"neutral":"ok")+'">'+(d.error?"Parcial":"Leído")+'</span></div>').join("")+'</div>';
+  const docs=analisisBases.documentosAnalizados||[],warnings=analisisBases.advertencias||[],leidos=docs.filter(d=>Number(d.caracteres)>0);
+  let html='<div class="doc-summary"><b>'+esc(leidos.length)+' fuente(s) oficial(es) con texto analizado</b><span>'+esc(analisisBases.documentosEncontrados||0)+' archivo(s) adjunto(s) localizado(s) en Mercado Público</span></div>';
+  if(!leidos.length)html+='<div class="alert warning" style="margin-top:10px"><b>No se pudo verificar el contenido de las bases.</b><br>La app mantiene los requisitos como pendientes y no los presenta como analizados.</div>';
+  if(docs.length)html+='<div class="doc-list">'+docs.map(d=>'<div class="doc-row"><div><b>'+esc(d.nombre)+'</b><small>'+esc((d.origen==="ficha_publica"?"Ficha pública oficial · ":"")+(d.error||((d.caracteres||0).toLocaleString("es-CL")+" caracteres leídos")))+'</small></div><span class="status '+(d.error?"neutral":"ok")+'">'+(d.error?"No legible":"Leído")+'</span></div>').join("")+'</div>';
   if(warnings.length)html+='<div class="muted small" style="margin-top:8px">'+warnings.map(esc).join(" · ")+'</div>';root.innerHTML=html;
 }
 
@@ -167,7 +185,7 @@ function actualizarSemaforo(){
   let label=pendientes+" por confirmar",cls="warning";if(analizando){label="Analizando bases";cls="info"}else if(bloqueos){label=bloqueos+" bloqueo"+(bloqueos>1?"s":"");cls="danger"}else if(pendientes===0&&detectados===0){label="Revisión completa";cls="ok"}else if(pendientes===0&&detectados>0){label="Requisitos detectados";cls="info"}
   $("semaforoGeneral").textContent=label;$("semaforoGeneral").className="status "+cls;
   $("semaforoDetalle").innerHTML='<div class="metric-line"><span>Cumple / confirmado / no aplica</span><b>'+confirmados+'</b></div><div class="metric-line"><span>Requisitos detectados automáticamente</span><b>'+detectados+'</b></div><div class="metric-line"><span>Falta antecedente / no encontrado</span><b>'+pendientes+'</b></div><div class="metric-line"><span>No cumple / bloqueos</span><b>'+bloqueos+'</b></div>';
-  const docs=analisisBases?.documentosAnalizados||[];$("estadoBases").textContent=analizando?"Analizando":bloqueos?"Con bloqueos":analisisBases?.ok?(docs.filter(d=>Number(d.caracteres)>0).length+" docs analizados"):"Faltan antecedentes";$("estadoBases").className="status "+(analizando?"info":bloqueos?"danger":analisisBases?.ok?"ok":"warning");
+  const bs=baseStats(),hayLectura=bs.leidos.length>0;$("estadoBases").textContent=analizando?"Analizando":bloqueos?"Con bloqueos":analisisBases?.ok?(hayLectura?(bs.leidos.length+" fuente(s) analizada(s)"):"Sin texto legible"):"Faltan antecedentes";$("estadoBases").className="status "+(analizando?"info":bloqueos?"danger":analisisBases?.ok&&hayLectura?"ok":"warning");
 }
 
 function analizarTextoBases(){
