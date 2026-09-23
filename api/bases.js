@@ -1,6 +1,6 @@
 const MP_BASE = "https://api.mercadopublico.cl/servicios/v1/publico";
 const MP_FICHA = "https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx";
-const VERSION = "5.5.0";
+const VERSION = "5.5.1";
 const MAX_DOCS = 7;
 const MAX_FILE_BYTES = 9 * 1024 * 1024;
 const MAX_TEXT_PER_DOC = 450000;
@@ -172,6 +172,24 @@ async function fetchJson(url, ms = 12000) {
   let data;
   try { data = JSON.parse(txt); } catch { data = null; }
   return { ok: r.ok, status: r.status, data, text: txt };
+}
+
+async function fetchJsonRetry(url, ms = 12000, attempts = 3) {
+  let last = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      last = await fetchJson(url, ms);
+      if (last.ok && last.data) return last;
+      const retryable = [408, 425, 429, 500, 502, 503, 504].includes(Number(last.status));
+      if (!retryable) return last;
+    } catch (e) {
+      last = { ok: false, status: 0, data: null, text: "", error: e?.message || "Error de red" };
+    }
+    if (i < attempts - 1) {
+      await new Promise(resolve => setTimeout(resolve, 450 * (i + 1)));
+    }
+  }
+  return last || { ok: false, status: 0, data: null, text: "" };
 }
 
 function escapeRegExp(v = "") {
@@ -470,23 +488,24 @@ module.exports = async function handler(req, res) {
     const licUrl = new URL(MP_BASE + "/licitaciones.json");
     licUrl.searchParams.set("codigo", codigo);
     licUrl.searchParams.set("ticket", ticket);
-    const lic = await fetchJson(licUrl.toString());
+    // La ficha principal ya fue consultada por el frontend. Esta segunda consulta
+    // a la API de Mercado Público puede ser limitada o fallar de forma transitoria,
+    // por eso se reintenta y nunca se usa como único punto de falla del lector.
+    const lic = await fetchJsonRetry(licUrl.toString(), 10000, 3);
+    const tender = lic?.ok && lic?.data
+      ? (Array.isArray(lic.data?.Listado) ? (lic.data.Listado[0] || {}) : lic.data)
+      : {};
+    const apiLicitacionDisponible = !!(tender && Object.keys(tender).length);
 
-    if (!lic.ok || !lic.data) {
-      return res.status(lic.status || 502).json({ ok: false, error: "No fue posible obtener la licitación desde Mercado Público." });
-    }
-
-    const tender = Array.isArray(lic.data?.Listado) ? lic.data.Listado[0] : lic.data;
-    if (!tender) return res.status(404).json({ ok: false, error: "Licitación no encontrada." });
-
+    // La ficha pública se intenta siempre, aunque la API adicional falle.
     const fichaPromise = leerFichaPublica(codigo);
 
     let apiArchivos = [];
     const archUrl = new URL(MP_BASE + "/licitaciones/" + encodeURIComponent(codigo) + "/Archivos.json");
     archUrl.searchParams.set("ticket", ticket);
     try {
-      const ar = await fetchJson(archUrl.toString(), 10000);
-      if (ar.ok && ar.data) apiArchivos = extraerListaArchivos(ar.data);
+      const ar = await fetchJsonRetry(archUrl.toString(), 10000, 2);
+      if (ar?.ok && ar.data) apiArchivos = extraerListaArchivos(ar.data);
     } catch {}
 
     const embebidos = urlsEmbebidas(tender);
@@ -528,6 +547,7 @@ module.exports = async function handler(req, res) {
 
     const criterios = extraerCriterios(leidos);
     const advertencias = [];
+    if (!apiLicitacionDisponible) advertencias.push("La consulta adicional a la API de Mercado Público no respondió; el lector continuó con la ficha pública y los archivos disponibles.");
     if (!fichaPublica?.texto) advertencias.push("No fue posible leer la ficha pública completa de Mercado Público.");
     if (!documentos.length) {
       advertencias.push(fichaPublica?.texto
