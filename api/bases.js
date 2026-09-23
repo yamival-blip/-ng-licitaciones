@@ -1,4 +1,6 @@
 const MP_BASE = "https://api.mercadopublico.cl/servicios/v1/publico";
+const MP_FICHA = "https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx";
+const VERSION = "5.5.0";
 const MAX_DOCS = 7;
 const MAX_FILE_BYTES = 9 * 1024 * 1024;
 const MAX_TEXT_PER_DOC = 450000;
@@ -24,16 +26,35 @@ function limpiarTexto(v = "") {
     .trim();
 }
 
+function decodificarHtml(v = "") {
+  const named = {
+    nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
+    aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú",
+    Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú",
+    ntilde: "ñ", Ntilde: "Ñ", uuml: "ü", Uuml: "Ü", deg: "°"
+  };
+  return String(v)
+    .replace(/&#(\d+);/g, (_, n) => {
+      const code = Number(n);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : " ";
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => {
+      const code = parseInt(n, 16);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : " ";
+    })
+    .replace(/&([a-zA-Z]+);/g, (m, k) => Object.prototype.hasOwnProperty.call(named, k) ? named[k] : " ");
+}
+
 function textoPlanoHtml(v = "") {
   return limpiarTexto(
-    String(v)
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/gi, " ")
-      .replace(/&amp;/gi, "&")
-      .replace(/&lt;/gi, "<")
-      .replace(/&gt;/gi, ">")
+    decodificarHtml(
+      String(v)
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<(?:br\s*\/?|\/p|\/div|\/tr|\/li|\/h[1-6])\s*>/gi, "\n")
+        .replace(/<td[^>]*>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+    )
   );
 }
 
@@ -145,12 +166,44 @@ async function fetchConTimeout(url, options = {}, ms = 12000) {
 
 async function fetchJson(url, ms = 12000) {
   const r = await fetchConTimeout(url, {
-    headers: { "User-Agent": "NG-Ingenieria-Licitaciones/5.4" }
+    headers: { "User-Agent": "NG-Ingenieria-Licitaciones/5.5" }
   }, ms);
   const txt = await r.text();
   let data;
   try { data = JSON.parse(txt); } catch { data = null; }
   return { ok: r.ok, status: r.status, data, text: txt };
+}
+
+function escapeRegExp(v = "") {
+  const specials = "\\^$.*+?()[]{}|";
+  return String(v).split("").map(ch => specials.includes(ch) ? "\\" + ch : ch).join("");
+}
+
+async function leerFichaPublica(codigo) {
+  const u = new URL(MP_FICHA);
+  u.searchParams.set("idlicitacion", codigo);
+  try {
+    const r = await fetchConTimeout(u.toString(), {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; NG-Licitaciones/5.5)",
+        "Accept-Language": "es-CL,es;q=0.9"
+      },
+      redirect: "follow"
+    }, 18000);
+    if (!r.ok) {
+      return { nombre: "Ficha pública Mercado Público", tipo: "html", url: u.toString(), origen: "ficha_publica", texto: "", error: "HTTP " + r.status };
+    }
+    const html = await r.text();
+    let texto = textoPlanoHtml(html);
+    if (texto.length > MAX_TEXT_PER_DOC) texto = texto.slice(0, MAX_TEXT_PER_DOC);
+    const idOk = new RegExp("Licitaci[oó]n\\s+ID\\s*:\\s*" + escapeRegExp(codigo), "i").test(texto);
+    if (!idOk || texto.length < 300) {
+      return { nombre: "Ficha pública Mercado Público", tipo: "html", url: r.url || u.toString(), origen: "ficha_publica", texto: "", error: "La ficha pública no devolvió contenido verificable para este ID" };
+    }
+    return { nombre: "Ficha pública Mercado Público", tipo: "html", url: r.url || u.toString(), origen: "ficha_publica", texto, bytes: Buffer.byteLength(html, "utf8"), error: "" };
+  } catch (e) {
+    return { nombre: "Ficha pública Mercado Público", tipo: "html", url: u.toString(), origen: "ficha_publica", texto: "", error: e?.name === "AbortError" ? "Tiempo de lectura agotado" : "No se pudo leer la ficha pública" };
+  }
 }
 
 function scoreDocumento(doc) {
@@ -214,7 +267,7 @@ async function leerDocumento(doc, ticket) {
   if (!/^https?:\/\//i.test(url)) return { ...doc, texto: "", error: "URL no válida" };
   try {
     const r = await fetchConTimeout(url, {
-      headers: { "User-Agent": "NG-Ingenieria-Licitaciones/5.4" }
+      headers: { "User-Agent": "NG-Ingenieria-Licitaciones/5.5" }
     }, 15000);
     if (!r.ok) return { ...doc, texto: "", error: `HTTP ${r.status}` };
     const len = Number(r.headers.get("content-length") || 0);
@@ -323,15 +376,15 @@ function evidenciaCategoria(id, leidos) {
     if (conTexto.length) {
       return {
         found: true,
-        summary: `Se leyeron automáticamente ${conTexto.length} documento(s): ${conTexto.slice(0, 4).map(d => d.nombre).join("; ")}${conTexto.length > 4 ? "…" : ""}`,
+        summary: `Se analizaron automáticamente ${conTexto.length} fuente(s) oficial(es): ${conTexto.slice(0, 4).map(d => d.nombre).join("; ")}${conTexto.length > 4 ? "…" : ""}`,
         sources: conTexto.map(d => d.nombre)
       };
     }
     return {
       found: false,
       summary: leidos.length
-        ? "Se localizaron documentos, pero no fue posible extraer texto automáticamente."
-        : "No se encontraron documentos descargables en el endpoint público revisado.",
+        ? "Se localizaron fuentes oficiales, pero no fue posible extraer texto automáticamente."
+        : "No fue posible obtener texto oficial verificable para esta licitación.",
       sources: []
     };
   }
@@ -426,6 +479,8 @@ module.exports = async function handler(req, res) {
     const tender = Array.isArray(lic.data?.Listado) ? lic.data.Listado[0] : lic.data;
     if (!tender) return res.status(404).json({ ok: false, error: "Licitación no encontrada." });
 
+    const fichaPromise = leerFichaPublica(codigo);
+
     let apiArchivos = [];
     const archUrl = new URL(MP_BASE + "/licitaciones/" + encodeURIComponent(codigo) + "/Archivos.json");
     archUrl.searchParams.set("ticket", ticket);
@@ -461,7 +516,11 @@ module.exports = async function handler(req, res) {
       .filter(d => d.score > 0 || /\.(pdf|docx?|xlsx?|xls|rtf|txt|csv|zip)(?:[?#]|$)/i.test(d.url))
       .slice(0, MAX_DOCS);
 
-    const leidos = await Promise.all(seleccionados.map(d => leerDocumento(d, ticket)));
+    const [fichaPublica, leidosAdjuntos] = await Promise.all([
+      fichaPromise,
+      Promise.all(seleccionados.map(d => leerDocumento(d, ticket)))
+    ]);
+    const leidos = fichaPublica?.texto ? [fichaPublica, ...leidosAdjuntos] : leidosAdjuntos;
 
     const reqIds = ["bases", "visita", "garantia", "admin", "experiencia", "profesionales", "tecnica", "economica", "plazo", "foro", "firmas", "envio"];
     const requisitos = {};
@@ -469,26 +528,39 @@ module.exports = async function handler(req, res) {
 
     const criterios = extraerCriterios(leidos);
     const advertencias = [];
-    if (!documentos.length) advertencias.push("El endpoint público de archivos no entregó documentos para esta licitación.");
-    if (documentos.length && !leidos.some(d => d.texto)) advertencias.push("Se encontraron archivos, pero ninguno entregó texto utilizable automáticamente.");
+    if (!fichaPublica?.texto) advertencias.push("No fue posible leer la ficha pública completa de Mercado Público.");
+    if (!documentos.length) {
+      advertencias.push(fichaPublica?.texto
+        ? "No se detectaron archivos adjuntos descargables; el análisis se realizó con la ficha pública oficial."
+        : "No se detectaron archivos adjuntos descargables.");
+    }
+    if (documentos.length && !leidosAdjuntos.some(d => d.texto)) advertencias.push("Se encontraron archivos adjuntos, pero ninguno entregó texto utilizable automáticamente.");
     const fallidos = leidos.filter(d => d.error);
-    if (fallidos.length) advertencias.push(`${fallidos.length} documento(s) no pudieron leerse completamente.`);
+    if (fallidos.length) advertencias.push(`${fallidos.length} fuente(s) no pudieron leerse completamente.`);
 
     return res.status(200).json({
       ok: true,
+      version: VERSION,
       codigo,
+      fichaPublica: {
+        leida: !!fichaPublica?.texto,
+        url: fichaPublica?.url || (MP_FICHA + "?idlicitacion=" + encodeURIComponent(codigo)),
+        error: fichaPublica?.error || null
+      },
       documentosEncontrados: documentos.length,
       documentosSeleccionados: seleccionados.length,
+      fuentesConTexto: leidos.filter(d => d.texto).length,
       documentosAnalizados: leidos.map(d => ({
         nombre: d.nombre,
         tipo: d.tipo || extensionDe(d) || "archivo",
+        origen: d.origen || "archivo_adjunto",
         caracteres: d.texto?.length || 0,
         error: d.error || null
       })),
       requisitos,
       criterios,
       advertencias,
-      fuente: "API pública de Mercado Público + documentos asociados disponibles"
+      fuente: "Ficha pública de Mercado Público + API pública + archivos asociados disponibles"
     });
   } catch (e) {
     return res.status(500).json({
