@@ -8,8 +8,8 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=5.5.3">
-  <link rel="stylesheet" href="/home-v5.css?v=5.5.3">
+  <link rel="stylesheet" href="/styles.css?v=5.5.4">
+  <link rel="stylesheet" href="/home-v5.css?v=5.5.4">
   <title>NG · Licitaciones</title>
 </head>
 <body>
@@ -21,8 +21,8 @@
       <div class="muted">Oportunidades · análisis · preparación · competencia · seguimiento</div>
     </div>
     <div class="top-actions">
-      <span class="badge">v5.5.3</span>
-      <span class="live-pill"><span class="live-dot"></span> Mercado Público</span>
+      <span class="badge">v5.5.4</span>
+      <span id="conexionMP" class="status neutral" role="status">Mercado Público · sin consultar</span>
     </div>
   </header>
 
@@ -30,7 +30,7 @@
     <div class="card hero-card">
       <span class="section-kicker">BUSCAR POR ID</span>
       <h2>Revisar una licitación completa</h2>
-      <p class="muted">Abre la ficha de NG para revisar requisitos, oferta, competencia, documentos y resultado.</p>
+      <p class="muted">Al cargar la ficha, la licitación queda guardada en Mis negocios para seguir sus cambios.</p>
       <div class="search-row">
         <input id="codigo" placeholder="Ej: 2384-22-LR26" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-describedby="ayudaCodigo">
         <button id="btnAbrir" class="primary">Analizar</button>
@@ -43,12 +43,13 @@
       <h2>Buscar negocios automáticamente</h2>
       <p class="muted">Consulta procesos publicados por fecha y prioriza los que calzan con el perfil de NG.</p>
       <div class="search-row date-search">
-        <input id="fechaBusqueda" type="date">
+        <input id="fechaBusqueda" type="date" aria-label="Fecha de búsqueda">
         <button id="btnBuscar" class="secondary">Buscar oportunidades</button>
       </div>
     </div>
 </section>
 
+  <p id="estadoGuardado" class="alert warning" role="alert" hidden></p>
   <section class="kpi-strip">
     <div class="kpi"><small>Negocios guardados</small><b id="kpiGuardados">0</b></div>
     <div class="kpi"><small>Oportunidades encontradas</small><b id="kpiOportunidades">0</b></div>
@@ -107,15 +108,19 @@
 
   <section id="negocios" class="card">
     <div class="section-head"><div><span class="section-kicker">04 · GESTIÓN</span><h2>Mis negocios</h2></div><span id="negociosCount" class="mini">0</span></div>
+    <div class="row"><button id="btnActualizarNegocios" class="secondary">Actualizar guardadas</button></div>
+    <p class="muted small">Los borradores anteriores de este dispositivo se recuperan automáticamente. “Actualizar guardadas” consulta su estado en Mercado Público.</p>
+    <p id="estadoSeguimiento" class="small" role="status" aria-live="polite"></p>
     <div id="listaNegocios" class="business-list"><div class="empty">Todavía no has guardado procesos.</div></div>
   </section>
 
   <section id="competencia" class="card">
-    <div class="section-head"><div><span class="section-kicker">05 · COMPETENCIA</span><h2>Inteligencia competitiva disponible</h2></div><span class="status warning">Sin inventar</span></div>
+    <div class="section-head"><div><span class="section-kicker">05 · COMPETENCIA</span><h2>Inteligencia competitiva</h2></div><span class="status neutral">Fichas consultadas</span></div>
+    <p id="compCobertura" class="muted small"></p>
     <div class="grid3">
       <div class="kpi"><small>Adjudicatarios detectados</small><b id="compAdjudicatarios">0</b></div>
       <div class="kpi"><small>Procesos con número de oferentes</small><b id="compOferentes">0</b></div>
-      <div class="kpi"><small>Historial guardado localmente</small><b id="compHistorial">0</b></div>
+      <div class="kpi"><small>Fichas con detalle consultado</small><b id="compHistorial">0</b></div>
     </div>
     <div id="competenciaPanel" class="note" style="margin-top:12px">Al consultar procesos adjudicados, la app irá acumulando adjudicatarios detectados. El historial profundo de precios y postulaciones requiere fuentes adicionales de Mercado Público/Datos Abiertos.</div>
   </section>
@@ -127,7 +132,8 @@
 
   <footer class="footer-note">Sistema interno de apoyo a NG Ingeniería. La decisión final debe contrastarse siempre con Mercado Público, bases, anexos, foro, actas y resoluciones oficiales.</footer>
 </div>
-<script src="/consulta.js?v=5.5.3"></script>
-<script src="/home-v5.js?v=5.5.3"></script>
+<script src="/consulta.js?v=5.5.4"></script>
+<script src="/seguimiento.js?v=5.5.4"></script>
+<script src="/home-v5.js?v=5.5.4"></script>
 </body>
 </html>

@@ -14,6 +14,7 @@ function view(home=false){
   const dom=new JSDOM(fs.readFileSync(__dirname+'/../public/'+(home?'index':'analisis')+'.html','utf8'),{url:'https://ng.test/'+(home?'':'analisis.html'),runScripts:'outside-only'});
   dom.window.AbortController=AbortController;
   dom.window.eval(fs.readFileSync(__dirname+'/../public/consulta.js','utf8'));
+  dom.window.eval(fs.readFileSync(__dirname+'/../public/seguimiento.js','utf8'));
   dom.window.eval(fs.readFileSync(__dirname+'/../public/'+(home?'home-v5':'analisis-v54')+'.js','utf8'));
   return dom;
 }

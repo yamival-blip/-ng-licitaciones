@@ -1,5 +1,4 @@
 const $ = id => document.getElementById(id);
-const KEYS = { saved: "ng_v5_negocios", alerts: "ng_v5_alertas", history: "ng_v5_historial" };
 const PERFIL = {
   zonas: ["Antofagasta", "Calama", "Tocopilla", "Mejillones"],
   palabras: ["construccion", "construcción", "obra", "obras civiles", "radier", "hormigon", "hormigón", "paviment", "vereda", "cierre perimetral", "estructura metal", "metalica", "metálica", "electric", "eléctric", "luminaria", "climatizacion", "climatización", "pintura", "techumbre", "cubierta", "reparacion", "reparación", "mejoramiento", "mantencion", "mantención", "sanitari", "agua potable", "alcantarill", "mobiliario", "juegos infantiles", "sombreadero", "cancha", "plaza"]
@@ -7,8 +6,12 @@ const PERFIL = {
 let oportunidades = [];
 let seleccion = null;
 
-function read(key, fallback) { try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); } catch { return fallback; } }
-function write(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+function avisoGuardado(error) {
+  $('estadoGuardado').hidden = false;
+  $('estadoGuardado').textContent = 'No se pudo guardar o recuperar el seguimiento en este dispositivo. ' + (error.message || 'Comprueba el espacio disponible.');
+}
+function leerSeguimiento(method) { try { return NGSeguimiento[method](); } catch (e) { avisoGuardado(e); return []; } }
+function estadoConexion(text, type) { $('conexionMP').textContent = text; $('conexionMP').className = 'status ' + type; }
 function esc(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m])); }
 function norm(v) { return String(v == null ? "" : v).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
 function formatDate(v) { if (!v) return "No informada"; const d = new Date(v); return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" }); }
@@ -17,12 +20,9 @@ function cleanRut(v) { return String(v || "").replace(/\./g, "").replace(/\s/g, 
 function todayInput() { const d = new Date(); const p = n => String(n).padStart(2, "0"); return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); }
 function apiDate(v) { const parts = String(v).split("-"); return parts.length === 3 ? parts[2] + parts[1] + parts[0] : ""; }
 function daysUntil(v) { if (!v) return null; const d = new Date(v); if (Number.isNaN(d.getTime())) return null; return (d - Date.now()) / 86400000; }
-function saved() { return read(KEYS.saved, []); }
-function alerts() { return read(KEYS.alerts, []); }
-function history() { return read(KEYS.history, []); }
-function setSaved(items) { write(KEYS.saved, items); }
-function setAlerts(items) { write(KEYS.alerts, items.slice(0, 100)); }
-function setHistory(items) { write(KEYS.history, items.slice(0, 500)); }
+function saved() { return leerSeguimiento('negocios'); }
+function alerts() { return leerSeguimiento('alertas'); }
+function history() { return leerSeguimiento('historial'); }
 
 function scoreNG(o) {
   const text = norm([o.nombre, o.descripcion, o.comprador, o.region, o.comuna].join(" "));
@@ -34,29 +34,19 @@ function scoreNG(o) {
 }
 function isSaved(codigo) { return saved().some(x => x.codigo === codigo); }
 function addBusiness(o) {
-  const arr = saved(); const i = arr.findIndex(x => x.codigo === o.codigo);
-  const item = { codigo: o.codigo, nombre: o.nombre || "", comprador: o.comprador || "", estado: o.estado || "", fechaCierre: o.fechaCierre || null, guardadoEn: new Date().toISOString() };
-  if (i >= 0) arr[i] = Object.assign({}, arr[i], item); else arr.unshift(item);
-  setSaved(arr); refreshDashboard(); renderOpportunities();
+  try { NGSeguimiento.guardar(o); } catch (e) { avisoGuardado(e); }
+  refreshDashboard(); renderOpportunities();
 }
-function removeBusiness(codigo) { setSaved(saved().filter(x => x.codigo !== codigo)); refreshDashboard(); renderOpportunities(); }
-function openAnalysis(codigo, tab) { location.href = "/analisis.html?codigo=" + encodeURIComponent(codigo) + "#" + (tab || "resumen"); }
-function recordState(o) {
-  if (!o || !o.codigo) return;
-  const arr = history(); const prev = arr.find(x => x.codigo === o.codigo);
-  if (prev && prev.estado && o.estado && prev.estado !== o.estado) {
-    const al = alerts(); al.unshift({ fecha: new Date().toISOString(), codigo: o.codigo, texto: "Estado cambió de “" + prev.estado + "” a “" + o.estado + "”." }); setAlerts(al);
-  }
-  const next = { codigo: o.codigo, nombre: o.nombre || "", estado: o.estado || "", comprador: o.comprador || "", fechaCierre: o.fechaCierre || null, ngAdjudicada: !!o.ngAdjudicada, proveedoresAdjudicados: o.proveedoresAdjudicados || [], numeroOferentes: o.numeroOferentes == null ? null : o.numeroOferentes, actualizadoEn: new Date().toISOString() };
-  setHistory([next].concat(arr.filter(x => x.codigo !== o.codigo)));
-}
+function removeBusiness(codigo) { try { NGSeguimiento.quitar(codigo); } catch (e) { avisoGuardado(e); } refreshDashboard(); renderOpportunities(); }
+function openAnalysis(codigo, tab) { document.activeElement?.blur(); location.href = "/analisis.html?codigo=" + encodeURIComponent(codigo) + "#" + (tab || "resumen"); }
 function normalizeResponse(j) {
   const list = j && j.data && Array.isArray(j.data.Listado) ? j.data.Listado : [];
   const analyses = j && Array.isArray(j.analisis) ? j.analisis : [];
-  return list.map((t, i) => {
-    const a = analyses[i] || {};
+  return list.filter(t => t && NGConsulta.valido(NGConsulta.codigo(t.CodigoExterno || t.Codigo))).map(t => {
+    const code = NGConsulta.codigo(t.CodigoExterno || t.Codigo);
+    const a = analyses.find(a => a && NGConsulta.codigo(a.codigo) === code) || {};
     return Object.assign({
-      codigo: t.CodigoExterno || t.Codigo || "", nombre: t.Nombre || "", descripcion: t.Descripcion || "", estado: t.Estado || "",
+      codigo: code, nombre: t.Nombre || "", descripcion: t.Descripcion || "", estado: NGConsulta.estado(t),
       comprador: (t.Comprador && (t.Comprador.NombreOrganismo || t.Comprador.NombreUnidad)) || "",
       region: (t.Comprador && (t.Comprador.RegionUnidad || t.Comprador.Region)) || "",
       comuna: (t.Comprador && (t.Comprador.ComunaUnidad || t.Comprador.Comuna)) || "",
@@ -67,20 +57,26 @@ function normalizeResponse(j) {
 }
 async function fetchMP(params) { return NGConsulta.consultar(params); }
 async function searchByDate() {
+  if ($('btnBuscar').disabled) return;
   const fecha = $("fechaBusqueda").value; if (!fecha) return;
+  document.activeElement?.blur(); $('btnBuscar').disabled = true; $('btnBuscar').textContent = 'Buscando…';
+  estadoConexion('Consultando Mercado Público', 'warning');
   $("estadoBusqueda").textContent = "Consultando…"; $("estadoBusqueda").className = "status warning";
   $("resultadoOportunidades").innerHTML = '<div class="empty"><span class="loader"></span> Consultando Mercado Público…</div>';
   try {
     const j = await fetchMP({ fecha: apiDate(fecha) });
     oportunidades = normalizeResponse(j).map(o => Object.assign({}, o, { _ng: scoreNG(o) }));
-    oportunidades.forEach(recordState);
+    const tracked = new Set(saved().map(x => x.codigo));
+    try { oportunidades.filter(o => tracked.has(o.codigo)).forEach(o => NGSeguimiento.guardar(o)); } catch (e) { avisoGuardado(e); }
+    estadoConexion('Conexión comprobada', 'ok');
     $("estadoBusqueda").textContent = oportunidades.length + " encontradas"; $("estadoBusqueda").className = "status ok";
     refreshDashboard(); renderOpportunities(); renderCompetition();
     if(!oportunidades.length)$('resultadoOportunidades').innerHTML='<div class="empty">Mercado Público no informó licitaciones para esta fecha.</div>';
   } catch (e) {
     oportunidades = []; $("estadoBusqueda").textContent = "Error"; $("estadoBusqueda").className = "status danger";
+    estadoConexion('Consulta no disponible', 'warning'); refreshDashboard();
     $("resultadoOportunidades").innerHTML = '<div class="alert warning"><b>No se pudo completar la búsqueda.</b><br>' + esc(e.name === "AbortError" ? "La consulta tardó demasiado." : e.message) + '</div>';
-  }
+  } finally { $('btnBuscar').disabled = false; $('btnBuscar').textContent = 'Buscar oportunidades'; }
 }
 function filteredOpportunities() {
   const q = norm($("filtroTexto").value), zone = norm($("filtroZona").value), only = $("filtroCalce").value === "ng";
@@ -119,17 +115,38 @@ function askIA() {
   else answer = 'Con lo cargado sé que <b>' + esc(o.codigo) + '</b> corresponde a “' + esc(o.nombre || "Sin nombre") + '”, está en estado <b>' + esc(o.estado || "No informado") + '</b> y lo compra <b>' + esc(o.comprador || "No informado") + '</b>. Para una respuesta sobre requisitos específicos necesito lo que indiquen las bases.';
   $("iaRespuesta").innerHTML = answer;
 }
-function refreshBusiness(code, btn) {
+async function refreshBusiness(code, btn) {
   if (btn) { btn.disabled = true; btn.textContent = "Revisando…"; }
-  fetchMP({ codigo: code }).then(j => {
-    const o = normalizeResponse(j)[0]; if (!o) throw new Error("Sin datos"); o._ng = scoreNG(o); recordState(o);
-    const arr = saved(), i = arr.findIndex(x => x.codigo === code); if (i >= 0) arr[i] = Object.assign({}, arr[i], { nombre: o.nombre, comprador: o.comprador, estado: o.estado, fechaCierre: o.fechaCierre }); setSaved(arr); refreshDashboard();
-  }).catch(() => { if (btn) { btn.disabled = false; btn.textContent = "Reintentar"; } });
+  try {
+    const j = await fetchMP({ codigo: code }), o = normalizeResponse(j)[0];
+    if (!o || o.codigo !== code) throw new Error('La respuesta no corresponde al ID solicitado.');
+    // A removal in another tab must not be undone by a pending update.
+    if (isSaved(code)) NGSeguimiento.guardar(o, true); else NGSeguimiento.recordar(o, true);
+    estadoConexion('Conexión comprobada', 'ok'); refreshDashboard();
+    if (btn) $('estadoSeguimiento').textContent = code + ' actualizado.';
+    return true;
+  } catch (e) {
+    $('estadoSeguimiento').textContent = code + ': ' + e.message;
+    if (btn) { btn.disabled = false; btn.textContent = 'Reintentar'; }
+    return false;
+  }
+}
+async function refreshAll() {
+  const btn = $('btnActualizarNegocios'); if (btn.disabled) return;
+  const codes = saved().map(x => x.codigo); if (!codes.length) return;
+  btn.disabled = true; const failed = [];
+  try {
+    for (let i = 0; i < codes.length; i++) {
+      $('estadoSeguimiento').textContent = 'Actualizando ' + (i + 1) + ' de ' + codes.length + ': ' + codes[i];
+      if (!await refreshBusiness(codes[i])) failed.push(codes[i]);
+    }
+    $('estadoSeguimiento').textContent = (codes.length - failed.length) + ' de ' + codes.length + ' actualizadas.' + (failed.length ? ' No se pudieron actualizar: ' + failed.join(', ') + '. Puedes reintentar; sus datos se conservan.' : '');
+  } finally { btn.disabled = false; }
 }
 function renderBusinesses() {
   const arr = saved(); $("negociosCount").textContent = arr.length; const root = $("listaNegocios");
   if (!arr.length) { root.innerHTML = '<div class="empty">Todavía no has guardado procesos.</div>'; return; }
-  root.innerHTML = arr.map(o => '<div class="business-row"><div><div class="row"><span class="mini">' + esc(o.codigo) + '</span><span class="status neutral">' + esc(o.estado || "Sin estado") + '</span></div><b>' + esc(o.nombre || "Proceso guardado") + '</b><small>' + esc(o.comprador || "") + ' · Cierre: ' + esc(formatDate(o.fechaCierre)) + '</small></div><div class="row"><button class="primary" data-business="open" data-code="' + esc(o.codigo) + '">Abrir</button><button class="secondary" data-business="refresh" data-code="' + esc(o.codigo) + '">Actualizar</button><button class="ghost" data-business="remove" data-code="' + esc(o.codigo) + '">Quitar</button></div></div>').join("");
+  root.innerHTML = arr.map(o => '<div class="business-row"><div><div class="row"><span class="mini">' + esc(o.codigo) + '</span><span class="status neutral">' + esc(o.estado || "Ficha por actualizar") + '</span></div><b>' + esc(o.nombre || (o.recuperadoDeBorrador ? "Borrador recuperado" : "Proceso guardado")) + '</b><small>' + esc(o.comprador || "") + ' · Cierre: ' + esc(formatDate(o.fechaCierre)) + '</small></div><div class="row"><button class="primary" data-business="open" data-code="' + esc(o.codigo) + '">Abrir</button><button class="secondary" data-business="refresh" data-code="' + esc(o.codigo) + '">Actualizar</button><button class="ghost" data-business="remove" data-code="' + esc(o.codigo) + '">Quitar</button></div></div>').join("");
 }
 function renderAlerts() {
   const arr = alerts(); $("kpiAlertas").textContent = arr.length; const root = $("listaAlertas");
@@ -137,13 +154,15 @@ function renderAlerts() {
 }
 function renderCompetition() {
   const h = history(), adjud = new Map(); let withN = 0;
-  h.forEach(x => { if (x.numeroOferentes) withN++; (x.proveedoresAdjudicados || []).forEach(p => { const key = cleanRut(p.rut) || p.nombre; if (key) adjud.set(key, p); }); });
-  $("compAdjudicatarios").textContent = adjud.size; $("compOferentes").textContent = withN; $("compHistorial").textContent = h.length;
+  h.forEach(x => { if (NGConsulta.numero(x.numeroOferentes) !== null) withN++; (x.proveedoresAdjudicados || []).forEach(p => { if (!p) return; const key = cleanRut(p.rut) || p.nombre; if (key) adjud.set(key, p); }); });
+  const consultadas = h.filter(x => x.detalleConsultado || (x.proveedoresAdjudicados || []).length || NGConsulta.numero(x.numeroOferentes) !== null);
+  $("compAdjudicatarios").textContent = consultadas.length ? adjud.size : '—'; $("compOferentes").textContent = withN || '—'; $("compHistorial").textContent = consultadas.length;
+  $('compCobertura').textContent = consultadas.length ? 'Datos de ' + consultadas.length + ' fichas consultadas. ' + withN + ' informan número de oferentes.' : 'Aún no hay fichas consultadas con detalle. Analiza un ID o actualiza tus negocios guardados.';
   const names = Array.from(adjud.values()).slice(0, 12);
-  $("competenciaPanel").innerHTML = names.length ? '<b>Adjudicatarios detectados en procesos consultados:</b><div class="competitor-list">' + names.map(p => '<div class="competitor"><div><b>' + esc(p.nombre || "Proveedor") + '</b><small>' + esc(p.rut || "RUT no informado") + '</small></div></div>').join("") + '</div>' : 'Al consultar procesos adjudicados, la app irá acumulando adjudicatarios detectados. El historial profundo de precios y postulaciones requiere fuentes adicionales de Mercado Público/Datos Abiertos.';
+  $("competenciaPanel").innerHTML = names.length ? '<b>Adjudicatarios detectados en procesos consultados:</b><div class="competitor-list">' + names.map(p => '<div class="competitor"><div><b>' + esc(p.nombre || "Proveedor") + '</b><small>' + esc(p.rut || "RUT no informado") + '</small></div></div>').join("") + '</div>' : 'Las fichas consultadas aún no informan adjudicatarios. Abre la pestaña Competencia de cada licitación para revisar sus antecedentes.';
 }
 function refreshDashboard() {
-  const s = saved(), h = history(); $("kpiGuardados").textContent = s.length; $("kpiOportunidades").textContent = oportunidades.length; $("kpiGanadas").textContent = h.filter(x => x.ngAdjudicada).length;
+  const s = saved(), h = history(); $("kpiGuardados").textContent = s.length; $("kpiOportunidades").textContent = oportunidades.length; $("kpiGanadas").textContent = h.some(x => x.detalleConsultado || x.ngAdjudicada) ? h.filter(x => x.ngAdjudicada).length : '—';
   renderBusinesses(); renderAlerts(); renderCompetition();
 }
 
@@ -157,6 +176,10 @@ $("btnIA").addEventListener("click", askIA); $("iaPregunta").addEventListener("k
 $("resultadoOportunidades").addEventListener("click", e => { const b = e.target.closest("button[data-action]"); if (!b) return; const code = b.dataset.code, o = oportunidades.find(x => x.codigo === code); if (!o) return; if (b.dataset.action === "analizar") openAnalysis(code); if (b.dataset.action === "buyer") selectBuyer(code); if (b.dataset.action === "save") { if (isSaved(code)) removeBusiness(code); else addBusiness(o); } });
 $("listaNegocios").addEventListener("click", e => { const b = e.target.closest("button[data-business]"); if (!b) return; const code = b.dataset.code; if (b.dataset.business === "open") openAnalysis(code); if (b.dataset.business === "refresh") refreshBusiness(code, b); if (b.dataset.business === "remove") removeBusiness(code); });
 $("listaAlertas").addEventListener("click", e => { const b = e.target.closest("button[data-alert-open]"); if (b) openAnalysis(b.dataset.alertOpen, "resultado"); });
-$("btnLimpiarAlertas").addEventListener("click", () => { setAlerts([]); renderAlerts(); });
+$("btnLimpiarAlertas").addEventListener("click", () => { try { NGSeguimiento.limpiarAlertas(); } catch (e) { avisoGuardado(e); } renderAlerts(); });
+$('btnActualizarNegocios').addEventListener('click', refreshAll);
+function recuperarSeguimiento() { try { NGSeguimiento.migrar(); } catch (e) { avisoGuardado(e); } refreshDashboard(); }
+window.addEventListener('pageshow', recuperarSeguimiento);
+window.addEventListener('storage', () => { refreshDashboard(); renderOpportunities(); });
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
-refreshDashboard();
+recuperarSeguimiento();

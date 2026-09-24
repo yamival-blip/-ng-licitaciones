@@ -1,4 +1,4 @@
-const CACHE = "ng-licitaciones-v5-5-3";
+const CACHE = "ng-licitaciones-v5-5-4";
 
 self.addEventListener("install", event => {
   self.skipWaiting();
