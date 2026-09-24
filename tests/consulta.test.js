@@ -46,6 +46,14 @@ test('errores de Mercado Público con HTTP 200 no se transforman en no encontrad
   assert.throws(()=>interpretar({Listado:[null]},200,codigo),{code:'INVALID_RESPONSE'});
 });
 
+test('la búsqueda por fecha conserva licitaciones válidas aunque Mercado Público mezcle una fila defectuosa',()=>{
+  const limpio=interpretar({Cantidad:2,Listado:[null,tender(codigo)]},200,null);
+  assert.equal(limpio.Cantidad,1);
+  assert.equal(limpio.Listado.length,1);
+  assert.equal(limpio.Listado[0].CodigoExterno,codigo);
+  assert.throws(()=>interpretar({Cantidad:1,Listado:[null]},200,null),{code:'INVALID_RESPONSE'});
+});
+
 test('reintenta una falla transitoria y conserva el resultado oficial',async()=>{
   let calls=0;
   const data=await consultar({codigo,ticket:'test-only'},{pause:0,fetchImpl:async()=>++calls===1?respuesta({Codigo:10500}):respuesta({Listado:[tender(codigo)]})});

@@ -2,7 +2,7 @@
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.NGConsulta = factory();
 })(typeof window === 'undefined' ? this : window, function () {
-  const VERSION = '5.5.2';
+  const VERSION = '5.5.3';
   const conocidos = ['1782-5-LR26', '3506-83-LP26', '2384-22-LR26', '2384-20-LR26'];
   function codigo(value) {
     let s = String(value ?? '').trim();
