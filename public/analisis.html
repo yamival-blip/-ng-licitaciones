@@ -7,7 +7,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="/styles.css?v=5.5.0">
+  <link rel="stylesheet" href="/styles.css?v=5.5.2">
   <title>NG · Licitaciones</title>
 </head>
 <body>
@@ -19,7 +19,7 @@
       <div class="muted">Buscar · analizar · preparar · seguir · competir</div>
     </div>
     <div class="top-actions">
-      <span class="badge">v5.5</span>
+      <span class="badge">v5.5.2</span>
       <button class="ghost" onclick="location.href='/'">← Inicio</button>
     </div>
   </header>
@@ -27,13 +27,14 @@
   <section class="card search-card">
     <label for="codigo">ID de licitación</label>
     <div class="search-row">
-      <input id="codigo" placeholder="Ej: 2430-73-LR26" autocapitalize="characters" autocomplete="off">
+      <input id="codigo" placeholder="Ej: 1782-5-LR26" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-describedby="ayudaCodigo">
       <button id="btnCargar" class="primary">Analizar licitación</button>
     </div>
+    <p id="ayudaCodigo" class="small muted">Escribe el ID completo o pega el enlace de Mercado Público.</p>
     <p class="rule"><b>Regla NG:</b> al analizar un ID, la app consulta Mercado Público y luego intenta localizar, descargar y leer automáticamente bases, anexos y documentos asociados. Detectar un requisito no significa que NG ya lo cumpla: el cumplimiento se confirma solo cuando existe respaldo de NG.</p>
   </section>
 
-  <section id="estado" class="card muted">Ingresa un ID para comenzar.</section>
+  <section id="estado" class="card muted" role="status" aria-live="polite">Ingresa un ID para comenzar.</section>
 
   <main id="app" hidden>
     <nav class="tabs card" aria-label="Secciones">
@@ -191,6 +192,7 @@
     </div>
   </main>
 </div>
-<script src="/analisis-v54.js?v=5.5.0"></script>
+<script src="/consulta.js?v=5.5.2"></script>
+<script src="/analisis-v54.js?v=5.5.2"></script>
 </body>
 </html>

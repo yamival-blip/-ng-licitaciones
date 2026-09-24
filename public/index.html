@@ -8,8 +8,8 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=5.5.0">
-  <link rel="stylesheet" href="/home-v5.css?v=5.5.0">
+  <link rel="stylesheet" href="/styles.css?v=5.5.2">
+  <link rel="stylesheet" href="/home-v5.css?v=5.5.2">
   <title>NG · Licitaciones</title>
 </head>
 <body>
@@ -21,7 +21,7 @@
       <div class="muted">Oportunidades · análisis · preparación · competencia · seguimiento</div>
     </div>
     <div class="top-actions">
-      <span class="badge">v5.5</span>
+      <span class="badge">v5.5.2</span>
       <span class="live-pill"><span class="live-dot"></span> Mercado Público</span>
     </div>
   </header>
@@ -32,9 +32,10 @@
       <h2>Revisar una licitación completa</h2>
       <p class="muted">Abre la ficha de NG para revisar requisitos, oferta, competencia, documentos y resultado.</p>
       <div class="search-row">
-        <input id="codigo" placeholder="Ej: 2384-22-LR26" autocapitalize="characters" autocomplete="off">
+        <input id="codigo" placeholder="Ej: 2384-22-LR26" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-describedby="ayudaCodigo">
         <button id="btnAbrir" class="primary">Analizar</button>
       </div>
+      <p id="ayudaCodigo" class="small muted" role="status">Escribe el ID completo o pega el enlace de Mercado Público.</p>
     </div>
 
     <div class="card hero-card">
@@ -46,7 +47,7 @@
         <button id="btnBuscar" class="secondary">Buscar oportunidades</button>
       </div>
     </div>
-  </section>
+</section>
 
   <section class="kpi-strip">
     <div class="kpi"><small>Negocios guardados</small><b id="kpiGuardados">0</b></div>
@@ -126,6 +127,7 @@
 
   <footer class="footer-note">Sistema interno de apoyo a NG Ingeniería. La decisión final debe contrastarse siempre con Mercado Público, bases, anexos, foro, actas y resoluciones oficiales.</footer>
 </div>
-<script src="/home-v5.js?v=5.5.0"></script>
+<script src="/consulta.js?v=5.5.2"></script>
+<script src="/home-v5.js?v=5.5.2"></script>
 </body>
 </html>

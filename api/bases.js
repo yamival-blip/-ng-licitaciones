@@ -1,21 +1,14 @@
 const MP_BASE = "https://api.mercadopublico.cl/servicios/v1/publico";
 const MP_FICHA = "https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx";
-const VERSION = "5.5.1";
+const NG = require('../public/consulta');
+const { consultar } = require('../lib/mercado-publico');
+const VERSION = NG.VERSION;
 const MAX_DOCS = 7;
 const MAX_FILE_BYTES = 9 * 1024 * 1024;
 const MAX_TEXT_PER_DOC = 450000;
 
-function normalizarCodigo(v = "") {
-  return String(v)
-    .trim()
-    .toUpperCase()
-    .replace(/[–—−]/g, "-")
-    .replace(/-+/g, "-");
-}
-
-function validoCodigo(v) {
-  return /^[A-Z0-9][A-Z0-9-]{4,49}$/.test(v) && !v.includes("..");
-}
+const normalizarCodigo = NG.codigo;
+const validoCodigo = NG.valido;
 
 function limpiarTexto(v = "") {
   return String(v)
@@ -158,10 +151,20 @@ async function fetchConTimeout(url, options = {}, ms = 12000) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
   try {
-    return await fetch(url, { ...options, signal: ctrl.signal });
-  } finally {
-    clearTimeout(timer);
-  }
+    const response = await fetch(url, { ...options, signal: ctrl.signal });
+    if (Number(response.headers.get('content-length') || 0) > MAX_FILE_BYTES) throw new Error('Archivo demasiado grande');
+    const chunks = []; let size = 0;
+    if (response.body) {
+      for await (const chunk of response.body) {
+        size += chunk.byteLength;
+        if (size > MAX_FILE_BYTES) { ctrl.abort(); throw new Error('Archivo demasiado grande'); }
+        chunks.push(Buffer.from(chunk));
+      }
+    }
+    const buffer = Buffer.concat(chunks);
+    return { ok: response.ok, status: response.status, url: response.url, headers: response.headers,
+      text: async () => buffer.toString('utf8'), arrayBuffer: async () => buffer };
+  } finally { clearTimeout(timer); }
 }
 
 async function fetchJson(url, ms = 12000) {
@@ -474,7 +477,9 @@ function extraerCriterios(leidos) {
 
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=600");
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  if(req.method === "OPTIONS") return res.status(204).end();
+  if(req.method && req.method !== "GET") return res.status(405).json({ok:false,error:"Método no permitido."});
 
   const ticket = process.env.MP_TICKET;
   if (!ticket) return res.status(500).json({ ok: false, error: "Falta configurar MP_TICKET en Vercel." });
@@ -485,28 +490,17 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const licUrl = new URL(MP_BASE + "/licitaciones.json");
-    licUrl.searchParams.set("codigo", codigo);
-    licUrl.searchParams.set("ticket", ticket);
-    // La ficha principal ya fue consultada por el frontend. Esta segunda consulta
-    // a la API de Mercado Público puede ser limitada o fallar de forma transitoria,
-    // por eso se reintenta y nunca se usa como único punto de falla del lector.
-    const lic = await fetchJsonRetry(licUrl.toString(), 10000, 3);
-    const tender = lic?.ok && lic?.data
-      ? (Array.isArray(lic.data?.Listado) ? (lic.data.Listado[0] || {}) : lic.data)
-      : {};
-    const apiLicitacionDisponible = !!(tender && Object.keys(tender).length);
-
-    // La ficha pública se intenta siempre, aunque la API adicional falle.
+    // Start independent official sources together so the public record is not
+    // blocked behind retries of the same tender API.
     const fichaPromise = leerFichaPublica(codigo);
-
-    let apiArchivos = [];
-    const archUrl = new URL(MP_BASE + "/licitaciones/" + encodeURIComponent(codigo) + "/Archivos.json");
-    archUrl.searchParams.set("ticket", ticket);
-    try {
-      const ar = await fetchJsonRetry(archUrl.toString(), 10000, 2);
-      if (ar?.ok && ar.data) apiArchivos = extraerListaArchivos(ar.data);
-    } catch {}
+    const licPromise = consultar({ codigo, ticket }).catch(() => null);
+    const archUrl = new URL(MP_BASE + '/licitaciones/' + encodeURIComponent(codigo) + '/Archivos.json');
+    archUrl.searchParams.set('ticket', ticket);
+    const archivosPromise = fetchJsonRetry(archUrl.toString(), 7000, 1).catch(() => null);
+    const [lic, ar] = await Promise.all([licPromise, archivosPromise]);
+    const tender = lic?.Listado?.[0] || {};
+    const apiLicitacionDisponible = !!tender.CodigoExterno;
+    const apiArchivos = ar?.ok && ar.data ? extraerListaArchivos(ar.data) : [];
 
     const embebidos = urlsEmbebidas(tender);
     const crudos = [...apiArchivos, ...embebidos];
@@ -555,7 +549,8 @@ module.exports = async function handler(req, res) {
         : "No se detectaron archivos adjuntos descargables.");
     }
     if (documentos.length && !leidosAdjuntos.some(d => d.texto)) advertencias.push("Se encontraron archivos adjuntos, pero ninguno entregó texto utilizable automáticamente.");
-    const fallidos = leidos.filter(d => d.error);
+    const fallidos = [...leidosAdjuntos, fichaPublica].filter(d => d?.error);
+    if (documentos.length > seleccionados.length) advertencias.push(`Se revisaron ${seleccionados.length} de ${documentos.length} archivos localizados. La revisión de documentos es parcial.`);
     if (fallidos.length) advertencias.push(`${fallidos.length} fuente(s) no pudieron leerse completamente.`);
 
     return res.status(200).json({

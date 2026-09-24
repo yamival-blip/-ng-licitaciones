@@ -65,15 +65,7 @@ function normalizeResponse(j) {
     }, a);
   });
 }
-async function fetchMP(params) {
-  const qs = new URLSearchParams(params); const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 22000);
-  try {
-    const r = await fetch("/api/licitaciones?" + qs.toString(), { cache: "no-store", signal: ctrl.signal });
-    let j; try { j = await r.json(); } catch { throw new Error("Respuesta inválida del servidor."); }
-    if (!r.ok || !j.ok) throw new Error(j.error || ("Error HTTP " + r.status));
-    return j;
-  } finally { clearTimeout(timer); }
-}
+async function fetchMP(params) { return NGConsulta.consultar(params); }
 async function searchByDate() {
   const fecha = $("fechaBusqueda").value; if (!fecha) return;
   $("estadoBusqueda").textContent = "Consultando…"; $("estadoBusqueda").className = "status warning";
@@ -84,6 +76,7 @@ async function searchByDate() {
     oportunidades.forEach(recordState);
     $("estadoBusqueda").textContent = oportunidades.length + " encontradas"; $("estadoBusqueda").className = "status ok";
     refreshDashboard(); renderOpportunities(); renderCompetition();
+    if(!oportunidades.length)$('resultadoOportunidades').innerHTML='<div class="empty">Mercado Público no informó licitaciones para esta fecha.</div>';
   } catch (e) {
     oportunidades = []; $("estadoBusqueda").textContent = "Error"; $("estadoBusqueda").className = "status danger";
     $("resultadoOportunidades").innerHTML = '<div class="alert warning"><b>No se pudo completar la búsqueda.</b><br>' + esc(e.name === "AbortError" ? "La consulta tardó demasiado." : e.message) + '</div>';
@@ -156,7 +149,7 @@ function refreshDashboard() {
 
 $("perfilChips").innerHTML = PERFIL.zonas.concat(["Obras civiles", "Electricidad", "Estructuras metálicas", "Climatización", "Pintura", "Mobiliario"]).map(x => '<span class="profile-chip">' + esc(x) + '</span>').join("");
 $("fechaBusqueda").value = todayInput();
-$("btnAbrir").addEventListener("click", () => { const c = $("codigo").value.trim().toUpperCase(); if (c) openAnalysis(c); });
+$("btnAbrir").addEventListener("click", () => { const c=NGConsulta.codigo($('codigo').value);if(!NGConsulta.valido(c)){$('ayudaCodigo').textContent='Escribe el ID completo. Ejemplo: 1782-5-LR26.';$('codigo').focus();return}openAnalysis(c); });
 $("codigo").addEventListener("keydown", e => { if (e.key === "Enter") $("btnAbrir").click(); });
 $("btnBuscar").addEventListener("click", searchByDate);
 ["filtroTexto", "filtroZona", "filtroCalce"].forEach(id => $(id).addEventListener(id === "filtroTexto" ? "input" : "change", renderOpportunities));

@@ -31,9 +31,9 @@ function pick(o,paths){for(const p of paths){let v=o;for(const k of p.split(".")
 function firstTender(data){const l=data?.Listado||data?.listado||data?.ListadoLicitacion||[];return Array.isArray(l)&&l.length?l[0]:(data?.CodigoExterno||data?.Nombre?data:null)}
 function ffecha(v){if(!v)return "No informado";const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleString("es-CL")}
 function fmonto(v){const n=Number(v);return Number.isFinite(n)&&n>0?n.toLocaleString("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}):"No informado"}
-function num(v){const n=Number(String(v??"").replace(/[^0-9.-]/g,""));return Number.isFinite(n)?n:0}
+function num(v){return NGConsulta.numero(v)}
 function key(){return "ng_postulacion_v4_"+codigoActual}
-function saved(){try{return JSON.parse(localStorage.getItem(key())||"{}")}catch{return {}}}
+function saved(){try{const s=JSON.parse(localStorage.getItem(key())||"{}");return s&&typeof s==="object"&&!Array.isArray(s)?s:{}}catch{return {}}}
 function now(){return new Date().toLocaleString("es-CL")}
 function statusClass(v){if(v==="confirmado")return"ok";if(v==="detectado"||v==="analizando")return"info";if(v==="bloqueo")return"danger";if(v==="noaplica"||v==="noencontrado")return"neutral";return"warning"}
 function statusLabel(v){return estadoOptions.find(x=>x[0]===v)?.[1]||"Falta antecedente"}
@@ -100,19 +100,54 @@ function automaticFacts(){
 function setTab(name){document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.tab===name));document.querySelectorAll(".panel").forEach(x=>x.classList.toggle("active",x.id===name));history.replaceState(null,"","#"+name)}
 document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>setTab(b.dataset.tab)));
 
+const camposGuardados = ["textoBases","riesgos","metodologia","experiencia","profesionales","plan","ofertaMonto","plazo","unidad","iva","pesoPrecio","pesoPlazo","pesoOtros","notasCompetencia","cartaPresentacion","cartaCompromiso","consultaForo"];
+function limpiarFormulario(){
+  camposGuardados.forEach(id=>{const el=$(id);if(el)el.value=el.tagName==='SELECT'?el.options[0].value:''});
+  $('guardado').textContent='';$('hallazgosTexto').hidden=true;$('hallazgosTexto').textContent='';
+}
+function codigosGuardados(){
+  const ids=[];
+  for(const key of ['ng_v5_negocios','ng_v5_historial']){
+    try{const list=JSON.parse(localStorage.getItem(key)||'[]');if(Array.isArray(list))list.forEach(x=>{if(x?.codigo)ids.push(x.codigo)})}catch{}
+  }
+  return ids;
+}
+function mostrarErrorConsulta(e,c){
+  const noExiste=e.code==='NOT_FOUND';
+  $('estado').innerHTML='<b class="bad">'+(noExiste?'No se encontró este ID.':'No se pudo completar la consulta.')+'</b><p>'+esc(e.message)+'</p>';
+  const sugeridos=noExiste?NGConsulta.sugerencias(c,codigosGuardados()):[];
+  if(sugeridos.length){
+    const aviso=document.createElement('p');aviso.textContent='¿Buscabas uno de estos códigos?';$('estado').append(aviso);
+    const row=document.createElement('div');row.className='query-actions';
+    sugeridos.forEach(code=>{const button=document.createElement('button');button.className='primary';button.textContent='Consultar '+code;button.onclick=()=>{$('codigo').value=code;cargar()};row.append(button)});
+    $('estado').append(row);
+  }
+  if(e.retryable!==false){
+    const retry=document.createElement('button');retry.className='secondary';retry.textContent='Reintentar consulta';retry.onclick=cargar;$('estado').append(retry);
+  }
+  $('codigo').setAttribute('aria-invalid',noExiste?'true':'false');
+}
 async function cargar(){
-  const c=$("codigo").value.trim().toUpperCase();if(!c)return;
-  const btn=$("btnCargar");btn.disabled=true;
+  const btn=$('btnCargar');if(btn.disabled)return;
+  const c=NGConsulta.codigo($('codigo').value);$('codigo').value=c;
+  if(!NGConsulta.valido(c)){
+    $('codigo').setAttribute('aria-invalid','true');
+    $('estado').textContent='Escribe el ID completo. Ejemplo: 1782-5-LR26.';
+    $('codigo').focus();return;
+  }
+  if(detalle)guardar(true);
+  btn.disabled=true;btn.textContent='Consultando…';$('codigo').disabled=true;
+  $('codigo').setAttribute('aria-invalid','false');
   codigoActual=c;detalle=null;analisisMP=null;analisisBases=null;
-  $("estado").innerHTML='<span class="loader"></span> Consultando Mercado Público…';$("app").hidden=true;
+  limpiarFormulario();
+  $('estado').innerHTML='<span class="loader"></span> Consultando Mercado Público…';$('app').hidden=true;
   try{
-    const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),18000);
-    const r=await fetch("/api/licitaciones?codigo="+encodeURIComponent(c),{signal:ctrl.signal,cache:"no-store"});clearTimeout(timer);
-    let j;try{j=await r.json()}catch{throw new Error("El servidor no devolvió una respuesta válida.")}
-    if(!r.ok||!j.ok)throw new Error(j.error||("Error HTTP "+r.status));
-    const t=firstTender(j.data);if(!t)throw new Error("No se encontró información para este ID.");
-    detalle={codigo:pick(t,["CodigoExterno","Codigo"])||c,nombre:pick(t,["Nombre"])||"",descripcion:pick(t,["Descripcion"])||"",estado:pick(t,["Estado","EstadoCodigo"])||"",comprador:pick(t,["Comprador.NombreOrganismo","Comprador.NombreUnidad","NombreOrganismo"])||"",fechaPublicacion:pick(t,["Fechas.FechaPublicacion","FechaPublicacion"]),fechaCierre:pick(t,["Fechas.FechaCierre","FechaCierre"]),fechaApertura:pick(t,["Fechas.FechaApertura","FechaApertura"]),fechaAdjudicacion:pick(t,["Fechas.FechaAdjudicacion","Adjudicacion.Fecha"]),montoEstimado:pick(t,["MontoEstimado","Monto","Presupuesto","ValorEstimado"]),moneda:pick(t,["Moneda"])||"CLP",tipo:pick(t,["Tipo","TipoConvocatoria"])||"",modalidad:pick(t,["Modalidad"])||"",etapas:pick(t,["Etapas"])||"",fechaVisita:pick(t,["Fechas.FechaVisitaTerreno","FechaVisitaTerreno"]),direccionVisita:pick(t,["DireccionVisita"])||"",duracionContrato:pick(t,["TiempoDuracionContrato"]),tipoDuracionContrato:pick(t,["TipoDuracionContrato"])||"",subcontratacion:pick(t,["SubContratacion"]),cantidadReclamos:pick(t,["CantidadReclamos"]),items:Array.isArray(t?.Items?.Listado)?t.Items.Listado:[],raw:t};
+    const j=await NGConsulta.consultar({codigo:c});
+    const t=firstTender(j.data);
+    if(!t||NGConsulta.codigo(t.CodigoExterno||t.Codigo)!==c)throw new Error('La respuesta no corresponde al ID solicitado. Vuelve a intentar.');
+    detalle={codigo:pick(t,["CodigoExterno","Codigo"])||c,nombre:pick(t,["Nombre"])||"",descripcion:pick(t,["Descripcion"])||"",estado:NGConsulta.estado(t),comprador:pick(t,["Comprador.NombreOrganismo","Comprador.NombreUnidad","NombreOrganismo"])||"",fechaPublicacion:pick(t,["Fechas.FechaPublicacion","FechaPublicacion"]),fechaCierre:pick(t,["Fechas.FechaCierre","FechaCierre"]),fechaApertura:pick(t,["Fechas.FechaActoAperturaTecnica","Fechas.FechaApertura","FechaApertura"]),fechaAdjudicacion:pick(t,["Fechas.FechaAdjudicacion","Adjudicacion.Fecha"]),montoEstimado:pick(t,["MontoEstimado","Monto","Presupuesto","ValorEstimado"]),moneda:pick(t,["Moneda"])||"CLP",tipo:pick(t,["Tipo","TipoConvocatoria"])||"",modalidad:pick(t,["Modalidad"])||"",etapas:pick(t,["Etapas"])||"",fechaVisita:pick(t,["Fechas.FechaVisitaTerreno","FechaVisitaTerreno"]),direccionVisita:pick(t,["DireccionVisita"])||"",duracionContrato:pick(t,["TiempoDuracionContrato"]),tipoDuracionContrato:pick(t,["TipoDuracionContrato"])||"",subcontratacion:pick(t,["SubContratacion"]),cantidadReclamos:pick(t,["CantidadReclamos"]),items:Array.isArray(t?.Items?.Listado)?t.Items.Listado:[],raw:t};
     analisisMP=Array.isArray(j.analisis)?j.analisis[0]:j.analisis||null;
+    const url=new URL(location.href);url.searchParams.set('codigo',c);history.replaceState(null,'',url.pathname+url.search+url.hash);
     renderTodo();restaurar();
     $("estado").innerHTML='<span class="loader"></span><b>Licitación cargada.</b> Leyendo bases y anexos automáticamente…';$("app").hidden=false;
     const hash=location.hash.replace("#","");if(["resumen","bases","postulacion","analisis","competencia","documentos","resultado"].includes(hash))setTab(hash);
@@ -123,23 +158,26 @@ async function cargar(){
     }else if(!bs.leidos.length){
       $("estado").innerHTML='<span class="bad"><b>Ficha cargada, sin análisis de bases.</b></span><br>No se obtuvo texto oficial legible; la app no dará por analizados requisitos que no pudo verificar.';
     }else{
-      $("estado").innerHTML='<span class="good-dot"></span><b>Análisis verificado:</b> '+esc(c)+' · '+esc(detalle.nombre||"")+' · '+esc(bs.leidos.length)+' fuente(s) oficial(es) leída(s)';
+      const adjuntos=bs.leidos.filter(d=>d.origen!=='ficha_publica').length;
+      $('estado').innerHTML='<b>Ficha cargada:</b> '+esc(c)+' · '+esc(detalle.nombre||'')+'<br>'+esc(adjuntos?adjuntos+' archivo(s) adjunto(s) con texto leído. Revisa la cobertura en Bases.':'Se leyó la ficha pública; los archivos de bases y anexos no se pudieron leer.');
     }
   }catch(e){
-    const msg=e.name==="AbortError"?"La consulta tardó demasiado. Intenta nuevamente.":e.message;
-    $("estado").innerHTML='<span class="bad"><b>No se pudo cargar la licitación.</b></span><br>'+esc(msg);
-  }finally{btn.disabled=false}
+    mostrarErrorConsulta(e,c);
+  }finally{btn.disabled=false;btn.textContent='Analizar licitación';$('codigo').disabled=false}
 }
 
 async function cargarBasesAutomatica(c){
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),65000);
   try{
-    const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),65000);
-    const r=await fetch("/api/bases?codigo="+encodeURIComponent(c),{signal:ctrl.signal,cache:"no-store"});clearTimeout(timer);
-    let j;try{j=await r.json()}catch{throw new Error("Respuesta inválida del lector de bases.")}
-    if(!r.ok||!j.ok)throw new Error(j.error||("Error HTTP "+r.status));
+    const r=await fetch('/api/bases?codigo='+encodeURIComponent(c),{signal:ctrl.signal,cache:'no-store'});
+    let j;try{j=await r.json()}catch(e){if(e.name==='AbortError')throw e;throw new Error('Respuesta inválida del lector de bases.')}
+    if(!r.ok||!j.ok)throw new Error(j.error||('Error HTTP '+r.status));
+    if(j.codigo!==c)throw new Error('El lector devolvió un ID distinto al solicitado.');
     analisisBases=j;aplicarCriteriosBases();
-  }catch(e){analisisBases={ok:false,error:e.name==="AbortError"?"La lectura automática tardó demasiado.":e.message}}
+  }catch(e){analisisBases={ok:false,error:e.name==='AbortError'?'La lectura automática tardó demasiado.':e.message}}
+  finally{clearTimeout(timer)}
   renderChecklist();renderRequisitos();renderDocumentosBases();calcularCriterios();
+  $('alertaPrincipal').innerHTML='<div class="note">Consulta finalizada. Revisa en Bases qué documentos pudieron leerse.</div>';
 }
 function aplicarCriteriosBases(){const c=analisisBases?.criterios;if(!c)return;if(c.precio!==null&&c.precio!==undefined&&!$("pesoPrecio").value)$("pesoPrecio").value=c.precio;if(c.plazo!==null&&c.plazo!==undefined&&!$("pesoPlazo").value)$("pesoPlazo").value=c.plazo;if(c.otros!==null&&c.otros!==undefined&&!$("pesoOtros").value)$("pesoOtros").value=c.otros}
 
@@ -204,9 +242,9 @@ function crearCartas(){
   if(!$("cartaCompromiso").value)$("cartaCompromiso").value="Señores\n"+comprador+"\n\nRef.: Licitación "+codigoActual+"\n\nNG Ingeniería y Servicios Ltda. manifiesta su compromiso de ejecutar las obligaciones que resulten adjudicadas conforme a la oferta presentada, las bases, anexos, aclaraciones y el contrato u orden de compra que corresponda.\n\nEste borrador debe ajustarse al anexo oficial si las bases lo exigen.";
 }
 function renderCompetencia(){if(!analisisMP){$("competidores").innerHTML='<div class="empty">No hay datos estructurados de competidores en esta consulta.</div>';return}const prov=analisisMP.proveedoresAdjudicados||[],n=analisisMP.numeroOferentes;let html='<div class="grid2"><div class="kpi"><small>Número de oferentes informado</small><b>'+esc(n??"No informado")+'</b></div><div class="kpi"><small>Adjudicatarios detectados</small><b>'+esc(prov.length)+'</b></div></div>';html+=prov.length?'<div class="competitor-list">'+prov.map(p=>'<div class="competitor"><div><b>'+esc(p.nombre||"Proveedor")+'</b><small>'+esc(p.rut||"RUT no informado")+'</small></div><span class="status ok">Adjudicatario detectado</span></div>').join("")+'</div>':'<div class="empty">Aún no hay adjudicatarios detectados.</div>';$("competidores").innerHTML=html}
-function renderResultado(){if(!analisisMP){$("analisisResultado").innerHTML='<div class="empty">No hay resultado estructurado disponible.</div>';$("faltantes").innerHTML='<b>Sin conclusión:</b> faltan datos oficiales de resultado.';return}let title,cls;if(analisisMP.resultadoNG==="ADJUDICADA_A_NG"){title="Adjudicada a NG";cls="ok"}else if(analisisMP.resultadoNG==="NO_ADJUDICADA_A_NG"){title="No adjudicada a NG";cls="danger"}else{title="Sin adjudicación oficial detectada";cls="warning"}$("estadoResultado").textContent=title;$("estadoResultado").className="status "+cls;const prov=(analisisMP.proveedoresAdjudicados||[]).map(x=>x.nombre).filter(Boolean).join(", ")||"No informado";$("analisisResultado").innerHTML='<div class="grid3"><div class="kpi"><small>Oferentes</small><b>'+esc(analisisMP.numeroOferentes??"No informado")+'</b></div><div class="kpi"><small>Adjudicatario(s)</small><b>'+esc(prov)+'</b></div><div class="kpi"><small>Monto adjudicado NG</small><b>'+esc(fmonto(analisisMP.montoAdjudicadoNG))+'</b></div></div>';$("faltantes").innerHTML=analisisMP.resultadoNG==="PENDIENTE"?'<b>Seguimiento abierto:</b> no existe adjudicación oficial detectada.':'<b>Resultado detectado desde la información pública disponible.</b>'}
+function renderResultado(){if(!analisisMP){$("analisisResultado").innerHTML='<div class="empty">No hay resultado estructurado disponible.</div>';$("faltantes").innerHTML='<b>Sin conclusión:</b> faltan datos oficiales de resultado.';return}let title,cls;if(analisisMP.resultadoNG==="ADJUDICADA_A_NG"){title="Adjudicada a NG";cls="ok"}else if(analisisMP.resultadoNG==="NO_ADJUDICADA_A_NG"){title="No adjudicada a NG";cls="danger"}else if(analisisMP.resultadoNG==="ADJUDICADA_SIN_DETALLE"){title="Adjudicada: falta detalle del resultado NG";cls="warning"}else{title="Sin adjudicación oficial detectada";cls="warning"}$("estadoResultado").textContent=title;$("estadoResultado").className="status "+cls;const prov=(analisisMP.proveedoresAdjudicados||[]).map(x=>x.nombre).filter(Boolean).join(", ")||"No informado";$("analisisResultado").innerHTML='<div class="grid3"><div class="kpi"><small>Oferentes</small><b>'+esc(analisisMP.numeroOferentes??"No informado")+'</b></div><div class="kpi"><small>Adjudicatario(s)</small><b>'+esc(prov)+'</b></div><div class="kpi"><small>Monto adjudicado NG</small><b>'+esc(fmonto(analisisMP.montoAdjudicadoNG))+'</b></div></div>';$("faltantes").innerHTML=analisisMP.resultadoNG==="ADJUDICADA_SIN_DETALLE"?'<b>No se puede concluir si NG ganó o perdió:</b> falta el detalle completo de adjudicación.':analisisMP.resultadoNG==="PENDIENTE"?'<b>Seguimiento abierto:</b> no existe adjudicación oficial detectada.':'<b>Resultado detectado desde la información pública disponible.</b>'}
 
-function guardar(silent=false){if(!codigoActual)return;const data=saved();data.statuses=getStatuses();const ids=["textoBases","riesgos","metodologia","experiencia","profesionales","plan","ofertaMonto","plazo","unidad","iva","pesoPrecio","pesoPlazo","pesoOtros","notasCompetencia","cartaPresentacion","cartaCompromiso","consultaForo"];ids.forEach(id=>{if($(id))data[id]=$(id).value});localStorage.setItem(key(),JSON.stringify(data));if(!silent)$("guardado").textContent="Guardado en este dispositivo: "+now()}
+function guardar(silent=false){if(!codigoActual||!detalle)return;const data=saved();data.statuses=getStatuses();const ids=["textoBases","riesgos","metodologia","experiencia","profesionales","plan","ofertaMonto","plazo","unidad","iva","pesoPrecio","pesoPlazo","pesoOtros","notasCompetencia","cartaPresentacion","cartaCompromiso","consultaForo"];ids.forEach(id=>{if($(id))data[id]=$(id).value});try{localStorage.setItem(key(),JSON.stringify(data));if(!silent)$('guardado').textContent='Guardado en este dispositivo: '+now()}catch{$('guardado').textContent='No se pudo guardar en este dispositivo. Usa Copiar resumen para conservar tus datos.'}}
 function restaurar(){const s=saved(),ids=["textoBases","riesgos","metodologia","experiencia","profesionales","plan","ofertaMonto","plazo","unidad","iva","pesoPrecio","pesoPlazo","pesoOtros","notasCompetencia","cartaPresentacion","cartaCompromiso","consultaForo"];ids.forEach(id=>{if($(id)&&s[id]!==undefined)$(id).value=s[id]});if(s.statuses)requisitos.forEach(([id])=>{const el=$("st_"+id);if(el){el.value=effectiveState(id,s.statuses);el.className="state-select "+statusClass(el.value)}});actualizarPct();renderRequisitos();actualizarSemaforo();calcularOferta();calcularCriterios()}
 async function copiarResumen(){const st=getStatuses(),pendientes=requisitos.filter(([id])=>!["confirmado","noaplica"].includes(st[id])).map(([id,t])=>"• "+t+" — "+statusLabel(st[id]||"faltante")).join("\n"),text="NG Ingeniería y Servicios Ltda.\nLicitación: "+codigoActual+" – "+(detalle?.nombre||"")+"\n\nEstado de revisión:\n"+(pendientes||"Sin pendientes registrados")+"\n\nPresupuesto: "+fmonto(detalle?.montoEstimado)+"\nOferta NG: "+($("ofertaMonto").value||"Pendiente")+"\nBaja: "+($("baja").value||"Pendiente")+"\nPlazo: "+($("plazo").value||"Pendiente")+" "+$("unidad").value+"\nIVA: "+$("iva").value+"\n\nRiesgos / observaciones:\n"+($("riesgos").value||"Sin registrar");try{await navigator.clipboard.writeText(text);$("guardado").textContent="Resumen copiado."}catch{$("guardado").textContent="No se pudo copiar automáticamente."}}
 

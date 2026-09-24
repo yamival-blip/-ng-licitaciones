@@ -1,190 +1,72 @@
-const MP = "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json";
-const NG_RUT = "77060047-2";
-const VERSION = "5.5.0";
+const NG = require('../public/consulta');
+const { consultar } = require('../lib/mercado-publico');
+const NG_RUT = '77060047-2';
+const limpiarRut = value => String(value || '').replace(/[.\s]/g, '').toUpperCase();
 
-function limpiarRut(rut = "") {
-  return String(rut).replace(/\./g, "").replace(/\s/g, "").toUpperCase();
-}
-
-function normalizarCodigo(v = "") {
-  return String(v).trim().toUpperCase().replace(/[–—−]/g, "-").replace(/-+/g, "-");
-}
-
-function analizarLicitacion(licitacion) {
-  if (!licitacion) return null;
-
-  const items = Array.isArray(licitacion?.Items?.Listado) ? licitacion.Items.Listado : [];
-  const adjudicaciones = [];
-
-  for (const item of items) {
-    const adj = item?.Adjudicacion;
-    if (!adj || (!adj.RutProveedor && !adj.NombreProveedor)) continue;
-
-    const cantidad = Number(adj.CantidadAdjudicada || 0);
-    const unitario = Number(adj.MontoUnitario || adj.Monto || 0);
-    const montoDirecto = Number(adj.MontoTotal || adj.MontoAdjudicado || 0);
-    const montoCalculado = montoDirecto > 0 ? montoDirecto : cantidad * unitario;
-
-    adjudicaciones.push({
-      correlativo: item.Correlativo || null,
-      producto: item.NombreProducto || item.Descripcion || "",
-      rutProveedor: adj.RutProveedor || "",
-      nombreProveedor: adj.NombreProveedor || "",
-      cantidadAdjudicada: cantidad,
-      montoUnitario: unitario,
-      montoCalculado
-    });
+function analizarLicitacion(t) {
+  const items = Array.isArray(t?.Items?.Listado) ? t.Items.Listado : [];
+  const adjudicaciones = items.flatMap(item => {
+    const a = item?.Adjudicacion;
+    if (!a || (!a.RutProveedor && !a.NombreProveedor)) return [];
+    const cantidad = NG.numero(a.CantidadAdjudicada);
+    const unitario = NG.numero(a.MontoUnitario ?? a.Monto);
+    const directo = NG.numero(a.MontoTotal ?? a.MontoAdjudicado);
+    return [{
+      correlativo: item.Correlativo ?? null, producto: item.NombreProducto || item.Descripcion || '',
+      rutProveedor: a.RutProveedor || '', nombreProveedor: a.NombreProveedor || '',
+      cantidadAdjudicada: cantidad, montoUnitario: unitario,
+      montoCalculado: directo ?? (cantidad !== null && unitario !== null ? cantidad * unitario : null)
+    }];
+  });
+  const adjudicacionesNG = adjudicaciones.filter(a => limpiarRut(a.rutProveedor) === NG_RUT);
+  const proveedoresAdjudicados = [...new Map(adjudicaciones.map(a => [limpiarRut(a.rutProveedor) || a.nombreProveedor, { rut: a.rutProveedor, nombre: a.nombreProveedor }])).values()];
+  const codigoEstado = Number(t.CodigoEstado ?? t.EstadoCodigo ?? t.CodigoEstadoLicitacion);
+  const estado = NG.estado(t);
+  const adjudicada = codigoEstado === 8 || /^adjudicada$/i.test(estado.trim()) || adjudicaciones.length > 0;
+  let resultadoNG = 'PENDIENTE';
+  if (adjudicacionesNG.length) resultadoNG = 'ADJUDICADA_A_NG';
+  else if (adjudicada) {
+    const completo = items.length > 0 && adjudicaciones.length === items.length && adjudicaciones.every(a => limpiarRut(a.rutProveedor));
+    resultadoNG = completo ? 'NO_ADJUDICADA_A_NG' : 'ADJUDICADA_SIN_DETALLE';
   }
-
-  const adjudicacionesNG = adjudicaciones.filter(
-    a => limpiarRut(a.rutProveedor) === limpiarRut(NG_RUT)
-  );
-
-  const proveedoresAdjudicados = [
-    ...new Map(
-      adjudicaciones.map(a => [
-        limpiarRut(a.rutProveedor) || a.nombreProveedor,
-        { rut: a.rutProveedor, nombre: a.nombreProveedor }
-      ])
-    ).values()
-  ];
-
-  const estadoTexto = String(licitacion.Estado || "").toLowerCase();
-  const codigoEstado = Number(
-    licitacion.CodigoEstado ?? licitacion.EstadoCodigo ?? licitacion.CodigoEstadoLicitacion
-  );
-  const estaAdjudicada =
-    codigoEstado === 8 ||
-    estadoTexto.includes("adjudic") ||
-    adjudicaciones.length > 0;
-
-  let resultadoNG = "PENDIENTE";
-  if (estaAdjudicada) {
-    resultadoNG = adjudicacionesNG.length > 0
-      ? "ADJUDICADA_A_NG"
-      : "NO_ADJUDICADA_A_NG";
-  }
-
   return {
-    codigo: licitacion.CodigoExterno || licitacion.Codigo || "",
-    nombre: licitacion.Nombre || "",
-    estado: licitacion.Estado || "",
+    codigo: t.CodigoExterno || t.Codigo || '', nombre: t.Nombre || '', estado,
     codigoEstado: Number.isFinite(codigoEstado) ? codigoEstado : null,
-    comprador: licitacion?.Comprador?.NombreOrganismo || licitacion?.Comprador?.NombreUnidad || "",
-    fechaCierre: licitacion?.Fechas?.FechaCierre || null,
-    resultadoNG,
-    ngAdjudicada: adjudicacionesNG.length > 0,
-    adjudicaciones,
-    adjudicacionesNG,
-    proveedoresAdjudicados,
-    montoAdjudicadoNG: adjudicacionesNG.reduce((total, a) => total + a.montoCalculado, 0),
-    numeroOferentes:
-      licitacion?.Adjudicacion?.NumeroOferentes ??
-      licitacion?.NumeroOferentes ??
-      null,
-    urlActa:
-      licitacion?.Adjudicacion?.UrlActa ||
-      licitacion?.Adjudicacion?.URLActa ||
-      null
+    comprador: t.Comprador?.NombreOrganismo || t.Comprador?.NombreUnidad || '',
+    region: t.Comprador?.RegionUnidad || t.Comprador?.Region || '', comuna: t.Comprador?.ComunaUnidad || t.Comprador?.Comuna || '',
+    fechaCierre: t.Fechas?.FechaCierre || t.FechaCierre || null,
+    resultadoNG, ngAdjudicada: adjudicacionesNG.length > 0, adjudicaciones, adjudicacionesNG, proveedoresAdjudicados,
+    montoAdjudicadoNG: adjudicacionesNG.length && adjudicacionesNG.every(a => a.montoCalculado !== null) ? adjudicacionesNG.reduce((s, a) => s + a.montoCalculado, 0) : null,
+    numeroOferentes: t.Adjudicacion?.NumeroOferentes ?? t.NumeroOferentes ?? null,
+    urlActa: t.Adjudicacion?.UrlActa || t.Adjudicacion?.URLActa || null,
+    actualizadoEn: new Date().toISOString()
   };
 }
 
 module.exports = async function handler(req, res) {
-  res.setHeader("Cache-Control", "s-maxage=30, stale-while-revalidate=120");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-
-  const ticket = process.env.MP_TICKET;
-  if (!ticket) {
-    return res.status(500).json({
-      ok: false,
-      version: VERSION,
-      error: "Falta configurar MP_TICKET en las variables de entorno de Vercel."
-    });
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method && req.method !== 'GET') return res.status(405).json({ ok: false, errorCode: 'METHOD', error: 'Método no permitido.' });
+  const codigo = NG.codigo(req.query.codigo), fecha = String(req.query.fecha || '').trim();
+  const invalido = message => res.status(400).json({ ok: false, version: NG.VERSION, errorCode: 'INVALID_QUERY', retryable: false, error: message });
+  if ((!codigo && !fecha) || (codigo && fecha)) return invalido('Indica un ID de licitación o una fecha (DDMMAAAA).');
+  if (codigo && !NG.valido(codigo)) return invalido('ID incompleto o inválido. Usa el formato 1782-5-LR26.');
+  if (fecha) {
+    const d = new Date(Date.UTC(Number(fecha.slice(4)), Number(fecha.slice(2, 4)) - 1, Number(fecha.slice(0, 2))));
+    if (!/^\d{8}$/.test(fecha) || d.getUTCDate() !== Number(fecha.slice(0, 2)) || d.getUTCMonth() + 1 !== Number(fecha.slice(2, 4)) || d.getUTCFullYear() !== Number(fecha.slice(4))) return invalido('Fecha inválida. Usa DDMMAAAA.');
   }
-
-  const codigo = normalizarCodigo(req.query.codigo || "");
-  const fecha = String(req.query.fecha || "").trim();
-
-  if (!codigo && !fecha) {
-    return res.status(400).json({
-      ok: false,
-      version: VERSION,
-      error: "Indica codigo o fecha (DDMMAAAA)."
-    });
-  }
-
-  if (codigo && !/^[A-Z0-9][A-Z0-9-]{4,49}$/.test(codigo)) {
-    return res.status(400).json({
-      ok: false,
-      version: VERSION,
-      error: "Código de licitación inválido."
-    });
-  }
-
-  const qs = new URLSearchParams({ ticket });
-  if (codigo) qs.set("codigo", codigo);
-  if (fecha) qs.set("fecha", fecha);
-
   try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 18000);
-    let r;
-    try {
-      r = await fetch(`${MP}?${qs.toString()}`, {
-        signal: ctrl.signal,
-        headers: { "User-Agent": "NG-Ingenieria-Licitaciones/5.5" }
-      });
-    } finally {
-      clearTimeout(timer);
-    }
-
-    const txt = await r.text();
-    let data;
-    try {
-      data = JSON.parse(txt);
-    } catch {
-      return res.status(502).json({
-        ok: false,
-        version: VERSION,
-        error: "Mercado Público devolvió una respuesta no válida."
-      });
-    }
-
-    if (!r.ok) {
-      return res.status(r.status).json({
-        ok: false,
-        version: VERSION,
-        error: "Error API Mercado Público",
-        data
-      });
-    }
-
-    const listado = Array.isArray(data?.Listado) ? data.Listado : [];
-    if (codigo && !listado.length) {
-      return res.status(404).json({
-        ok: false,
-        version: VERSION,
-        error: "No se encontró la licitación solicitada.",
-        data
-      });
-    }
-
-    const analisis = listado.map(analizarLicitacion).filter(Boolean);
-
-    return res.status(200).json({
-      ok: true,
-      version: VERSION,
-      cantidad: Number(data?.Cantidad ?? listado.length),
-      analisis,
-      data
-    });
+    const data = await consultar({ codigo, fecha, ticket: process.env.MP_TICKET });
+    return res.status(200).json({ ok: true, version: NG.VERSION, cantidad: data.Listado.length, analisis: data.Listado.map(analizarLicitacion), data });
   } catch (e) {
-    return res.status(500).json({
-      ok: false,
-      version: VERSION,
-      error: e?.name === "AbortError"
-        ? "La consulta a Mercado Público excedió el tiempo disponible."
-        : (e?.message || "No se pudo consultar Mercado Público.")
+    console.warn('[licitaciones] consulta_fallida', { codigo: codigo || undefined, tipo: e.code || 'INTERNAL' });
+    if (e.code === 'RATE_LIMIT') res.setHeader('Retry-After', '30');
+    return res.status(e.status || 502).json({
+      ok: false, version: NG.VERSION, codigo, errorCode: e.code || 'INTERNAL', retryable: e.retryable !== false,
+      error: e.code ? e.message : 'No se pudo completar la consulta. Vuelve a intentar.'
     });
   }
 };
+module.exports.analizarLicitacion = analizarLicitacion;
+module.exports.config = { maxDuration: 30 };

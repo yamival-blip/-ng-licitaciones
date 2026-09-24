@@ -210,3 +210,9 @@ button{border:1px solid #38516d;border-radius:12px;padding:11px 14px;font-weight
 @media(max-width:620px){
   .auto-fact{grid-template-columns:1fr;gap:3px}
 }
+
+.query-actions{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+.query-actions button{white-space:normal;overflow-wrap:anywhere}
+[aria-invalid="true"]{border-color:#ff9d9d}
+#estado p{margin:8px 0 14px}
+button:disabled,input:disabled{cursor:wait;opacity:.7}

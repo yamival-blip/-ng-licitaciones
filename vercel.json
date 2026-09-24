@@ -66,6 +66,24 @@
           "value": "no-store, max-age=0, must-revalidate"
         }
       ]
+    },
+    {
+      "source": "/consulta.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0, must-revalidate"
+        }
+      ]
     }
   ],
   "rewrites": [
@@ -77,5 +95,13 @@
       "source": "/(.*)",
       "destination": "/public/$1"
     }
-  ]
+  ],
+  "functions": {
+    "api/licitaciones.js": {
+      "maxDuration": 30
+    },
+    "api/bases.js": {
+      "maxDuration": 60
+    }
+  }
 }
